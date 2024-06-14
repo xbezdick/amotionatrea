@@ -1,6 +1,7 @@
 import time
 import logging
 import requests
+from websockets.sync.client import connect
 import json
 
 from homeassistant.util import Throttle
@@ -69,6 +70,7 @@ class AAtreaDevice(ClimateEntity):
         super().__init__()
         self.data = hass.data[DOMAIN][entry.entry_id]
         self._session = self.data["session"]
+        self._ws = self.data["ws"]
         self._host = entry.data.get(CONF_HOST)
         self._attr_unique_id = "%s-%s" % (sensor_name, entry.data.get(CONF_HOST))
         self.updatePending = False
@@ -157,8 +159,9 @@ class AAtreaDevice(ClimateEntity):
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         control = {'variables': {'temp_request': kwargs.get(ATTR_TEMPERATURE)}}
-        r = await self.hass.async_add_executor_job(self._session.post, "http://%s/api/control" % self._host, json.dumps(control))
-        LOGGER.debug(r.json())
+        await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "control", "args": "%s" }' % json.dumps(control))
+        r = await self.hass.async_add_executor_job(self._ws.recv())
+        LOGGER.debug(r)
 
     @property
     def fan_mode(self):
@@ -174,19 +177,21 @@ class AAtreaDevice(ClimateEntity):
     async def async_set_fan_mode(self, fan_mode):
         """Set new target fan mode."""
         control = {'variables': {'fan_power_req': int(fan_mode)}}
-        r = await self.hass.async_add_executor_job(self._session.post, "http://%s/api/control" % self._host, json.dumps(control))
-        LOGGER.debug(r.json())
+        await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "control", "args": "%s" }' % self._host, json.dumps(control))
+        r = await self.hass.async_add_executor_job(self._ws.recv())
+        LOGGER.debug(r)
 
     async def async_update(self):
         if not self.updatePending:
             self.updatePending = True
-            r = await self.hass.async_add_executor_job(self._session.get, "http://%s/api/ui_info" % self._host)
-            LOGGER.debug(r.json())
-            self._temperature = r.json()['result']["unit"]["temp_sup"]
+            await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "ui_info", "args": null }')
+            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv()))
+            LOGGER.debug(r)
+            self._temperature = r['response']["unit"]["temp_sup"]
             #self._inside_temperature = r.json()['result']["unit"]["temp_ida"]
             #self._outside_temperature = r.json()['result']["unit"]["temp_oda"]
             #self._exhaust_temperature = r.json()['result']["unit"]["temp_eha"]
-            self._fan_mode = r.json()['result']["requests"]["fan_power_req"]
-            self._setpoint = r.json()['result']["requests"]["temp_request"]
+            self._fan_mode = r['response']["requests"]["fan_power_req"]
+            self._setpoint = r['response']["requests"]["temp_request"]
             self.updatePending = False
 

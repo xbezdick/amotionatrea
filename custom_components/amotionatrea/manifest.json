@@ -6,6 +6,6 @@
   "domain": "amotionatrea",
   "iot_class": "local_polling",
   "name": "Amotion Atrea",
-  "requirements": [],
+  "requirements": ["websocket-client"],
   "version": "1.0.0"
 }

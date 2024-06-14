@@ -1,7 +1,7 @@
 """Support for Amotion Atrea sensors."""
 import time
 import logging
-import requests
+import requests, websocket
 import json
 
 from collections.abc import Callable
@@ -122,6 +122,7 @@ class AAtreaDeviceSensor(SensorEntity):
     ) -> None:
         self.data = hass.data[DOMAIN][entry.entry_id]
         self._session = self.data["session"]
+        self._ws = self.data["ws"]
         self._host = entry.data.get(CONF_HOST)
         self.entity_description = description
         self._name = sensor_name
@@ -147,7 +148,8 @@ class AAtreaDeviceSensor(SensorEntity):
         """Retrieve latest state."""
         if not self.updatePending:
             self.updatePending = True
-            r = await self.hass.async_add_executor_job(self._session.get, "http://%s/api/ui_info" % self._host)
-            LOGGER.debug(r.json())
-            self.value = r.json()['result']["unit"][self.entity_description.json_value]
+            await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "ui_info", "args": null }')
+            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv()) )
+            LOGGER.debug(r)
+            self.value = r['response']["unit"][self.entity_description.json_value]
             self.updatePending = False
