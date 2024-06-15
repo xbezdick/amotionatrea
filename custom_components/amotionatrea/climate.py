@@ -11,6 +11,9 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from typing import Callable, Any
 from homeassistant.components.climate.const import HVACAction
 
+from . import AmotionAtreaCoordinator
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
 #from http.client import HTTPConnection
 #HTTPConnection.debuglevel = 1
 
@@ -39,7 +42,6 @@ from homeassistant.components.climate.const import (
 from .const import (
     DOMAIN,
     LOGGER,
-    MIN_TIME_BETWEEN_SCANS,
     SUPPORT_FLAGS,
     STATE_UNKNOWN,
     CONF_FAN_MODES,
@@ -49,32 +51,36 @@ from .const import (
     HVAC_MODES,
 )
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: Callable
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: Callable
 ):
     sensor_name = entry.data.get(CONF_NAME)
     if sensor_name is None:
         sensor_name = "aatrea"
 
-    hass.data[DOMAIN][entry.entry_id]["climate"] = AAtreaDevice(hass, entry, sensor_name)
-    async_add_entities([hass.data[DOMAIN][entry.entry_id]["climate"]])
+
+    coordinator: AmotionAtreaCoordinator = hass.data[DOMAIN][entry.entry_id]
+    entities: list[AAtreaDevice] = [AAtreaDevice(coordinator, entry, sensor_name)]
+    async_add_entities(entities)
 
 
-class AAtreaDevice(ClimateEntity):
+class AAtreaDevice(
+    CoordinatorEntity[AmotionAtreaCoordinator], ClimateEntity
+):
 
     _attr_supported_features = (
         ClimateEntityFeature.FAN_MODE
         | ClimateEntityFeature.TARGET_TEMPERATURE
     )
 
-    def __init__(self, hass, entry, sensor_name):
-        super().__init__()
-        self.data = hass.data[DOMAIN][entry.entry_id]
-        self._session = self.data["session"]
-        self._ws = self.data["ws"]
-        self._host = entry.data.get(CONF_HOST)
+    def __init__(self, coordinator, entry, sensor_name):
+        super().__init__(coordinator)
+        self._atrea = coordinator.aatrea
         self._attr_unique_id = "%s-%s" % (sensor_name, entry.data.get(CONF_HOST))
         self.updatePending = False
         self._name = sensor_name
+        # fixme - provide this from AmotionAtrea
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._attr_unique_id)},
             manufacturer="Atrea",
@@ -82,14 +88,12 @@ class AAtreaDevice(ClimateEntity):
             name=self._name,
             sw_version="FIXME",
         )
+
         self._state = None
         self._temperature = None
         self._setpoint = None
         self._mode = None
         self._current_hvac_mode = HVAC_MODE_AUTO
-        #self._inside_temperature = None
-        #self._outside_temperature = None
-        #self._exhaust_temperature = None
         self._fan_mode = None
 
     @property
@@ -131,15 +135,7 @@ class AAtreaDevice(ClimateEntity):
 
     @property
     def state(self):
-        return self._current_hvac_mode
-
-#    @property
-#    def extra_state_attributes(self):
-#        attributes = {}
-#        attributes["inside_temperature"] = self._inside_temperature
-#        attributes["outside_temperature"] = self._outside_temperature
-#        attributes["exhaust_temperature"] = self._exhaust_temperature
-#        return attributes
+        return self._atrea.status['current_hvac_mode']
 
     def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""
@@ -149,25 +145,26 @@ class AAtreaDevice(ClimateEntity):
     @property
     def current_temperature(self):
         """Return the current temperature."""
-        return self._temperature
+        return self._atrea.status['current_temperature']
 
     @property
     def target_temperature(self):
         """Return the temperature we try to reach."""
-        return self._setpoint
+        return self._atrea.status['setpoint']
 
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
-        control = {'variables': {'temp_request': kwargs.get(ATTR_TEMPERATURE)}}
-        await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "control", "args": "%s" }' % json.dumps(control))
-        r = await self.hass.async_add_executor_job(self._ws.recv)
-        LOGGER.debug(r)
+        # TODO move to AmotionAtrea set_temperature?
+        control = json.dumps({'variables': {'temp_request': kwargs.get(ATTR_TEMPERATURE)}})
+        response_id = await self._atrea.send('{ "endpoint": "control", "args": %s }' % control)
+        LOGGER.debug("TEMP %s" % response_id)
+        await self._atrea.update(response_id)
 
     @property
     def fan_mode(self):
         """Return the current fan mode."""
         if self._fan_mode:
-            return str(round(self._fan_mode, -1))
+            return str(round(self._atrea.status['fan_mode'], -1))
         return "0"
 
     @property
@@ -176,22 +173,9 @@ class AAtreaDevice(ClimateEntity):
 
     async def async_set_fan_mode(self, fan_mode):
         """Set new target fan mode."""
-        control = {'variables': {'fan_power_req': int(fan_mode)}}
-        await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "control", "args": "%s" }' % json.dumps(control))
-        r = await self.hass.async_add_executor_job(self._ws.recv)
-        LOGGER.debug(r)
-
-    async def async_update(self):
-        if not self.updatePending:
-            self.updatePending = True
-            await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "ui_info", "args": null }')
-            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv)
-            LOGGER.debug(r)
-            self._temperature = r['response']["unit"]["temp_sup"]
-            #self._inside_temperature = r.json()['result']["unit"]["temp_ida"]
-            #self._outside_temperature = r.json()['result']["unit"]["temp_oda"]
-            #self._exhaust_temperature = r.json()['result']["unit"]["temp_eha"]
-            self._fan_mode = r['response']["requests"]["fan_power_req"]
-            self._setpoint = r['response']["requests"]["temp_request"]
-            self.updatePending = False
+        # TODO move to AmotionAtrea set_fan?
+        control = json.dumps({'variables': {'fan_power_req': int(fan_mode)}})
+        response_id = await self._atrea.send('{ "endpoint": "control", "args": %s }' % control)
+        LOGGER.debug("FAN %s" % response_id)
+        await self._atrea.update(response_id)
 
