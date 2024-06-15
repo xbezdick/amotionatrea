@@ -121,9 +121,7 @@ class AAtreaDeviceSensor(SensorEntity):
         sensor_name,
     ) -> None:
         self.data = hass.data[DOMAIN][entry.entry_id]
-        self._session = self.data["session"]
-        self._ws = self.data["ws"]
-        self._host = entry.data.get(CONF_HOST)
+        self._atrea = self.data["atrea"]
         self.entity_description = description
         self._name = sensor_name
         self._attr_unique_id = "%s-%s-%s" % (sensor_name, entry.data.get(CONF_HOST), description.key)
@@ -141,15 +139,16 @@ class AAtreaDeviceSensor(SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        LOGGER.debug("CALLED")
+        LOGGER.debug("CALLED %s %s" % (self._name, self.value))
         return self.value
 
     async def async_update(self) -> None:
         """Retrieve latest state."""
         if not self.updatePending:
             self.updatePending = True
-            await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "ui_info", "args": null }')
-            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv) )
-            LOGGER.debug(r)
-            self.value = r['response']["unit"][self.entity_description.json_value]
+            response_id = await self._atrea.send('{ "endpoint": "ui_info", "args": null }')
+            LOGGER.debug("Sensor got response id %s" % response_id)
+            r = await self._atrea.update(response_id)
+            LOGGER.debug("Sensor got response %s" % r)
+            self.value = r["unit"][self.entity_description.json_value]
             self.updatePending = False

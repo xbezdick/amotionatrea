@@ -12,7 +12,8 @@ from homeassistant.components.climate.const import (
 DOMAIN = "amotionatrea"
 
 LOGGER = logging.getLogger(__name__)
-MIN_TIME_BETWEEN_SCANS = timedelta(seconds=10)
+TIMEOUT = 120
+
 SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE | SUPPORT_PRESET_MODE
 DEFAULT_NAME = "Atrea"
 STATE_MANUAL = "manual"
