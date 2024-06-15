@@ -149,7 +149,7 @@ class AAtreaDeviceSensor(SensorEntity):
         if not self.updatePending:
             self.updatePending = True
             await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "ui_info", "args": null }')
-            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv()) )
+            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv) )
             LOGGER.debug(r)
             self.value = r['response']["unit"][self.entity_description.json_value]
             self.updatePending = False

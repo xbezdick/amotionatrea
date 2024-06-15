@@ -160,7 +160,7 @@ class AAtreaDevice(ClimateEntity):
         """Set new target temperature."""
         control = {'variables': {'temp_request': kwargs.get(ATTR_TEMPERATURE)}}
         await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "control", "args": "%s" }' % json.dumps(control))
-        r = await self.hass.async_add_executor_job(self._ws.recv())
+        r = await self.hass.async_add_executor_job(self._ws.recv)
         LOGGER.debug(r)
 
     @property
@@ -177,15 +177,15 @@ class AAtreaDevice(ClimateEntity):
     async def async_set_fan_mode(self, fan_mode):
         """Set new target fan mode."""
         control = {'variables': {'fan_power_req': int(fan_mode)}}
-        await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "control", "args": "%s" }' % self._host, json.dumps(control))
-        r = await self.hass.async_add_executor_job(self._ws.recv())
+        await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "control", "args": "%s" }' % json.dumps(control))
+        r = await self.hass.async_add_executor_job(self._ws.recv)
         LOGGER.debug(r)
 
     async def async_update(self):
         if not self.updatePending:
             self.updatePending = True
             await self.hass.async_add_executor_job(self._ws.send, '{ "endpoint": "ui_info", "args": null }')
-            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv()))
+            r = json.loads( await self.hass.async_add_executor_job(self._ws.recv)
             LOGGER.debug(r)
             self._temperature = r['response']["unit"]["temp_sup"]
             #self._inside_temperature = r.json()['result']["unit"]["temp_ida"]
