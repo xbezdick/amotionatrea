@@ -1,7 +1,6 @@
 import time
 import logging
 import requests
-from websockets.sync.client import connect
 import json
 
 from homeassistant.util import Throttle
