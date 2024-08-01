@@ -1,7 +1,7 @@
 """Support for Amotion Atrea sensors."""
 import time
 import logging
-import requests
+import requests, websocket
 import json
 
 from collections.abc import Callable
@@ -20,6 +20,9 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from . import AmotionAtreaCoordinator
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -100,29 +103,30 @@ async def async_setup_entry(
     if sensor_name is None:
         sensor_name = "aatrea"
 
-    LOGGER.debug("INIT")
+    coordinator: AmotionAtreaCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[AAtreaDeviceSensor] = [
-        AAtreaDeviceSensor(hass, entry, description, sensor_name)
+        AAtreaDeviceSensor(coordinator, entry, description, sensor_name)
         for description in ATREA_SENSORS
     ]
     async_add_entities(entities)
 
 
-class AAtreaDeviceSensor(SensorEntity):
+class AAtreaDeviceSensor(
+    CoordinatorEntity[AmotionAtreaCoordinator], SensorEntity
+):
 
     entity_description: AtreaSensorEntityDescription
     _attr_has_entity_name = True
 
     def __init__(
         self,
-        hass,
+        coordinator,
         entry,
         description: AtreaSensorEntityDescription,
         sensor_name,
     ) -> None:
-        self.data = hass.data[DOMAIN][entry.entry_id]
-        self._session = self.data["session"]
-        self._host = entry.data.get(CONF_HOST)
+        super().__init__(coordinator)
+        self._atrea = coordinator.aatrea
         self.entity_description = description
         self._name = sensor_name
         self._attr_unique_id = "%s-%s-%s" % (sensor_name, entry.data.get(CONF_HOST), description.key)
@@ -135,19 +139,9 @@ class AAtreaDeviceSensor(SensorEntity):
             sw_version="FIXME",
         )
         self.updatePending = False
-        self.value = None
 
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        LOGGER.debug("CALLED")
-        return self.value
-
-    async def async_update(self) -> None:
-        """Retrieve latest state."""
-        if not self.updatePending:
-            self.updatePending = True
-            r = await self.hass.async_add_executor_job(self._session.get, "http://%s/api/ui_info" % self._host)
-            LOGGER.debug(r.json())
-            self.value = r.json()['result']["unit"][self.entity_description.json_value]
-            self.updatePending = False
+        LOGGER.debug("CALLED %s" % self._name)
+        return self._atrea.status[self.entity_description.json_value]
