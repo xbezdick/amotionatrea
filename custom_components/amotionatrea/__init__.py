@@ -77,7 +77,7 @@ class AtreaWebsocket:
     async def connect(self, on_data, on_close):
         try:
             async with websockets.connect(
-                "ws://%s/api/ws" % self._host, ping_interval=10, ping_timeout=10, logger=LOGGER
+                "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
             ) as websocket:
                 try:
                     self._websocket = websocket
@@ -141,13 +141,17 @@ class AmotionAtrea:
             LOGGER.debug(self._messages)
         elif message['type'] == 'event' and message['event'] == 'ui_info':
             self.status['current_temperature'] = message["args"]["unit"]["temp_sup"]
-            self.status['fan_mode'] = message["args"]["requests"]["fan_power_req"]
             self.status['setpoint'] = message["args"]["requests"]["temp_request"]
             self.status['temp_oda'] = message["args"]["unit"]['temp_oda']
             self.status['temp_ida'] = message["args"]["unit"]['temp_ida']
             self.status['temp_eha'] = message["args"]["unit"]['temp_eha']
             self.status['fan_eta_factor'] = message["args"]["unit"]['fan_eta_factor']
             self.status['fan_sup_factor'] = message["args"]["unit"]['fan_sup_factor']
+            if message["args"]["requests"]["fan_power_req"]:
+                self.status['fan_mode'] = message["args"]["requests"]["fan_power_req"]
+            else if message["args"]["requests"]["flow_ventilation_req"]:
+                self.status['fan_mode'] = message["args"]["requests"]["flow_ventilation_req"]
+
 
 
     async def update(self,message_id=None):
@@ -173,7 +177,10 @@ class AmotionAtrea:
             response_id = await self.send('{ "endpoint": "ui_info", "args": null }')
             message = await self.update(response_id)
             self.status['current_temperature'] = message["unit"]["temp_sup"]
-            self.status['fan_mode'] = message["requests"]["fan_power_req"]
+            if message["requests"]["fan_power_req"]:
+                self.status['fan_mode'] = message["requests"]["fan_power_req"]
+            else if message["requests"]["flow_ventilation_req"]:
+                self.status['fan_mode'] = message["requests"]["flow_ventilation_req"]
             self.status['setpoint'] = message["requests"]["temp_request"]
             self.status['temp_oda'] = message["unit"]['temp_oda']
             self.status['temp_ida'] = message["unit"]['temp_ida']
