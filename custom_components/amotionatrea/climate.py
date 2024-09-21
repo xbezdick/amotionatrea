@@ -168,9 +168,5 @@ class AAtreaDevice(
 
     async def async_set_fan_mode(self, fan_mode):
         """Set new target fan mode."""
-        # TODO move to AmotionAtrea set_fan?
-        control = json.dumps({'variables': {'fan_power_req': int(fan_mode)}})
-        response_id = await self._atrea.send('{ "endpoint": "control", "args": %s }' % control)
-        LOGGER.debug("FAN %s" % response_id)
-        await self._atrea.update(response_id)
+        await self._atrea.set_fan_mode(fan_mode)
 

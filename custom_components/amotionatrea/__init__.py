@@ -1,14 +1,9 @@
-import websockets
 import json
 import logging
 import asyncio
+from datetime import timedelta
 
-
-from .const import (
-     DOMAIN,
-     TIMEOUT,
-     LOGGER,
-)
+import websockets
 
 from homeassistant.const import (
     CONF_HOST,
@@ -17,7 +12,6 @@ from homeassistant.const import (
     Platform,
 )
 
-from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -30,12 +24,21 @@ from homeassistant.components.climate.const import (
 )
 
 
+from .const import (
+     DOMAIN,
+     TIMEOUT,
+     LOGGER,
+)
+
 PLATFORMS = [Platform.CLIMATE, Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """ Setup connection to atrea """
     try:
-        atrea = AmotionAtrea(hass, entry.data[CONF_HOST], entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
+        atrea = AmotionAtrea(hass,
+                             entry.data[CONF_HOST],
+                             entry.data[CONF_USERNAME],
+                             entry.data[CONF_PASSWORD])
         entry.async_create_background_task(
             hass, atrea.ws_connect(), "amotionatrea-ws_connect"
         )
@@ -58,7 +61,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    return True
 
 
 class AtreaWebsocket:
@@ -139,18 +141,28 @@ class AmotionAtrea:
             self._messages[message['id']] = message['response']
             LOGGER.debug(message['response'])
             LOGGER.debug(self._messages)
-        elif message['type'] == 'event' and message['event'] == 'ui_info':
+        elif message['type'] == 'event' and message['event'] == 'ui_info' and self.logged_in:
             self.status['current_temperature'] = message["args"]["unit"]["temp_sup"]
             self.status['setpoint'] = message["args"]["requests"]["temp_request"]
             self.status['temp_oda'] = message["args"]["unit"]['temp_oda']
             self.status['temp_ida'] = message["args"]["unit"]['temp_ida']
             self.status['temp_eha'] = message["args"]["unit"]['temp_eha']
-            self.status['fan_eta_factor'] = message["args"]["unit"]['fan_eta_factor']
-            self.status['fan_sup_factor'] = message["args"]["unit"]['fan_sup_factor']
-            if message["args"]["requests"]["fan_power_req"]:
+            if self._max_flow:
+                self.status['fan_mode'] = round( float(message["args"]
+                                                              ["requests"]
+                                                              ["fan_power_req"])/
+                                                (float(self._max_flow)/100), -1
+                                               )
+                self.status['fan_eta_factor'] = round( float(message["args"]["unit"]["flow_eta"])/
+                                                (float(self._max_flow)/100), -1
+                                               )
+                self.status['fan_sup_factor'] = round( float(message["args"]["unit"]["flow_sup"])/
+                                                (float(self._max_flow)/100), -1
+                                               )
+            else:
+                self.status['fan_eta_factor'] = message["args"]["unit"]['fan_eta_factor']
+                self.status['fan_sup_factor'] = message["args"]["unit"]['fan_sup_factor']
                 self.status['fan_mode'] = message["args"]["requests"]["fan_power_req"]
-            elif message["args"]["requests"]["flow_ventilation_req"]:
-                self.status['fan_mode'] = message["args"]["requests"]["flow_ventilation_req"]
 
 
 
@@ -164,29 +176,39 @@ class AmotionAtrea:
                     del self._messages[message_id]
                     LOGGER.debug("Found message %s" % msg)
                     return msg
-                LOGGER.debug("Not found message_id: %s in %s attempt %s" %(message_id, self._messages, i))
+                LOGGER.debug("Not found message_id: %s in %s attempt %s" %(message_id,
+                                                                           self._messages,
+                                                                           i))
                 await asyncio.sleep(1)
             raise Exception("Message with id %s was not received" % message_id)
 
     async def fetch(self):
         if self.status['current_temperature'] is None:
             for i in range(60):
-                 if self.logged_in:
-                     break
-                 await asyncio.sleep(1)
+                if self.logged_in:
+                    break
+                await asyncio.sleep(1)
             response_id = await self.send('{ "endpoint": "ui_info", "args": null }')
             message = await self.update(response_id)
             self.status['current_temperature'] = message["unit"]["temp_sup"]
-            if message["requests"]["fan_power_req"]:
-                self.status['fan_mode'] = message["requests"]["fan_power_req"]
-            elif message["requests"]["flow_ventilation_req"]:
-                self.status['fan_mode'] = message["requests"]["flow_ventilation_req"]
             self.status['setpoint'] = message["requests"]["temp_request"]
             self.status['temp_oda'] = message["unit"]['temp_oda']
             self.status['temp_ida'] = message["unit"]['temp_ida']
             self.status['temp_eha'] = message["unit"]['temp_eha']
-            self.status['fan_eta_factor'] = message["unit"]['fan_eta_factor']
-            self.status['fan_sup_factor'] = message["unit"]['fan_sup_factor']
+            if self._max_flow:
+                self.status['fan_mode'] = round( float(message["requests"]["fan_power_req"])/
+                                                (float(self._max_flow)/100), -1
+                                               )
+                self.status['fan_eta_factor'] = round( float(message["unit"]["flow_eta"])/
+                                                (float(self._max_flow)/100), -1
+                                               )
+                self.status['fan_sup_factor'] = round( float(message["unit"]["flow_sup"])/
+                                                (float(self._max_flow)/100), -1
+                                               )
+            else:
+                self.status['fan_eta_factor'] = message["unit"]['fan_eta_factor']
+                self.status['fan_sup_factor'] = message["unit"]['fan_sup_factor']
+                self.status['fan_mode'] = message["requests"]["fan_power_req"]
 
     async def send(self,message):
         # sends message and returns id you can look for in update
@@ -205,11 +227,23 @@ class AmotionAtrea:
 
     async def login(self):
         LOGGER.debug("sending login to get token")
-        msg_id = await self.send('{"endpoint":"login","args":{"username":"%s","password":"%s"}}' % (self._username, self._password))
+        msg_id = await self.send(
+                    '{"endpoint":"login","args":{"username":"%s","password":"%s"}}'
+                     % (self._username, self._password))
         token = await self.update(message_id = msg_id)
         LOGGER.debug("token is")
         await self.send('{"endpoint":"login","args":{"token":"%s"}}' % token)
+        await self.ui_scheme()
         self.logged_in = True
+
+    async def ui_scheme(self):
+        response_id = await self.send('{ "endpoint": "ui_info_scheme", "args": null }')
+        message = await self.update(response_id)
+        if "flow_ventilation_req" in message["requests"]:
+            response_id = await self.send('{ "endpoint": "ui_control_scheme", "args": null }')
+            message = await self.update(response_id)
+            self._max_flow = message["requests"]["types"]["flow_ventilation_req"]["max"]
+            self._min_flow = message["requests"]["types"]["flow_ventilation_req"]["min"]
 
     async def on_close(self) -> None:
         raise Exception("failed")
@@ -218,6 +252,17 @@ class AmotionAtrea:
     async def ws_connect(self) -> None:
         """Connect the websocket."""
         await self._websocket.connect(self.receive, self.on_close)
+
+    async def set_fan_mode(self, fan_mode):
+        if self._max_flow:
+            flow_request = (float(self._max_flow)/100)*int(fan_mode)
+            if flow_request < self._min_flow:
+                flow_request = self._min_flow
+            control = json.dumps({'variables': {"fan_power_req": int(flow_request)}})
+        else:
+            control = json.dumps({'variables': {"fan_power_req": int(fan_mode)}})
+        response_id = await self.send('{ "endpoint": "control", "args": %s }' % control)
+        await self.update(response_id)
 
     def __init__(self, hass, host, username, password) -> None:
         """Initialize the Daikin Handle."""
@@ -230,6 +275,8 @@ class AmotionAtrea:
         self._msg_id = 0
         self._messages = {}
         self._websocket = AtreaWebsocket(host)
+        self._max_flow = None
+        self._min_flow = None
 
         self.status = {
           'state': None,
