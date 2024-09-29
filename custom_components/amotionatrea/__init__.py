@@ -77,23 +77,26 @@ class AtreaWebsocket:
             await asyncio.sleep(1)
 
     async def connect(self, on_data, on_close):
-        try:
-            async with websockets.connect(
-                "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
-            ) as websocket:
-                try:
+        while True:
+            try:
+                async with websockets.connect(
+                    "ws://%s/api/ws" % self._host,
+                    ping_interval=None,
+                    ping_timeout=None,
+                    logger=LOGGER
+                ) as websocket:
                     self._websocket = websocket
                     async for message in websocket:
                         LOGGER.debug("Received %s" % message)
                         await on_data(json.loads(message))
-                except Exception as err:
-                    LOGGER.debug(err)
-                    await on_close()
-                    return
-        except Exception as err:
-            LOGGER.debug(err)
-            await on_close()
-            return
+            except websockets.ConnectionClosed as e_closed:
+                LOGGER.info("Connection closed, retrying...")
+                LOGGER.debug(e_closed)
+                await asyncio.sleep(5)
+            except Exception as err:
+                LOGGER.debug(err)
+                await on_close()
+                return
 
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
