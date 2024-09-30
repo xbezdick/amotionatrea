@@ -1,7 +1,7 @@
 """Support for Amotion Atrea sensors."""
 import time
 import logging
-import requests, websockets
+import requests, websocket
 import json
 
 from collections.abc import Callable
