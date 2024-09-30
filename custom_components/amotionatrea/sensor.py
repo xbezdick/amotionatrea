@@ -1,9 +1,4 @@
 """Support for Amotion Atrea sensors."""
-import time
-import logging
-import requests, websocket
-import json
-
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -11,17 +6,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_NAME,
     CONF_HOST,
-    UnitOfEnergy,
     UnitOfTemperature,
     PERCENTAGE,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import async_generate_entity_id
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import AmotionAtreaCoordinator
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from homeassistant.components.sensor import (
@@ -29,9 +19,9 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
-    ENTITY_ID_FORMAT,
 )
 
+from . import AmotionAtreaCoordinator
 
 from .const import (
     DOMAIN,
@@ -129,7 +119,9 @@ class AAtreaDeviceSensor(
         self._atrea = coordinator.aatrea
         self.entity_description = description
         self._name = sensor_name
-        self._attr_unique_id = "%s-%s-%s" % (sensor_name, entry.data.get(CONF_HOST), description.key)
+        self._attr_unique_id = "%s-%s-%s" % (sensor_name,
+                                            entry.data.get(CONF_HOST),
+                                            description.key)
         self._device_unique_id = "%s-%s" % (sensor_name, entry.data.get(CONF_HOST))
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._device_unique_id)},
