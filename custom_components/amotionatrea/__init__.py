@@ -242,8 +242,8 @@ class AmotionAtrea:
         if "flow_ventilation_req" in message["requests"]:
             response_id = await self.send('{ "endpoint": "ui_control_scheme", "args": null }')
             message = await self.update(response_id)
-            self._max_flow = message["requests"]["types"]["flow_ventilation_req"]["max"]
-            self._min_flow = message["requests"]["types"]["flow_ventilation_req"]["min"]
+            self._max_flow = message["types"]["flow_ventilation_req"]["max"]
+            self._min_flow = message["types"]["flow_ventilation_req"]["min"]
 
     async def on_close(self) -> None:
         raise Exception("failed")
