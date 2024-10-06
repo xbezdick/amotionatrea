@@ -233,7 +233,6 @@ class AmotionAtrea:
         LOGGER.debug("token is")
         await self.send('{"endpoint":"login","args":{"token":"%s"}}' % token)
         await self.ui_scheme()
-        self.logged_in = True
 
     async def ui_scheme(self):
         response_id = await self.send('{ "endpoint": "ui_info_scheme", "args": null }')
