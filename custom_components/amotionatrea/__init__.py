@@ -77,7 +77,7 @@ class AtreaWebsocket:
             await asyncio.sleep(1)
 
     async def connect(self, on_data, on_close):
-        while True:
+        for i in range(10):
             try:
                 async with websockets.connect(
                     "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
@@ -93,6 +93,7 @@ class AtreaWebsocket:
                 LOGGER.debug(err)
                 await on_close()
                 return
+            asyncio.sleep(1)
 
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
@@ -103,7 +104,7 @@ class AmotionAtreaCoordinator(DataUpdateCoordinator):
             LOGGER,
             name="AmotionAtrea",
             update_interval=timedelta(seconds=30),
-#always_update            always_update=True
+            always_update=True
         )
         self.aatrea = aatrea
 
@@ -168,8 +169,8 @@ class AmotionAtrea:
     async def update(self,message_id=None):
         LOGGER.debug("update %s" % message_id)
         if message_id:
-            # for now loop 30 times(?) before throwing error
-            for i in range(30):
+            # for now loop 10 times(?) before throwing error
+            for i in range(10):
                 if message_id in self._messages:
                     msg = self._messages[message_id]
                     del self._messages[message_id]
@@ -179,35 +180,39 @@ class AmotionAtrea:
                                                                            self._messages,
                                                                            i))
                 await asyncio.sleep(1)
-            raise Exception("Message with id %s was not received" % message_id)
+            LOGGER.debug(f"RECONNECTING, {self.receive}, {self.on_close}")
+            await self.ws_connect()
+            #raise ConfigEntryNotReady
 
     async def fetch(self):
-        if self.status['current_temperature'] is None:
-            for i in range(60):
-                if self.logged_in:
-                    break
-                await asyncio.sleep(1)
-            response_id = await self.send('{ "endpoint": "ui_info", "args": null }')
-            message = await self.update(response_id)
-            self.status['current_temperature'] = message["unit"]["temp_sup"]
-            self.status['setpoint'] = message["requests"]["temp_request"]
-            self.status['temp_oda'] = message["unit"]['temp_oda']
-            self.status['temp_ida'] = message["unit"]['temp_ida']
-            self.status['temp_eha'] = message["unit"]['temp_eha']
-            if self._max_flow:
-                self.status['fan_mode'] = round( float(message["requests"]["fan_power_req"])/
-                                                (float(self._max_flow)/100), -1
-                                               )
-                self.status['fan_eta_factor'] = round( float(message["unit"]["flow_eta"])/
-                                                (float(self._max_flow)/100), -1
-                                               )
-                self.status['fan_sup_factor'] = round( float(message["unit"]["flow_sup"])/
-                                                (float(self._max_flow)/100), -1
-                                               )
-            else:
-                self.status['fan_eta_factor'] = message["unit"]['fan_eta_factor']
-                self.status['fan_sup_factor'] = message["unit"]['fan_sup_factor']
-                self.status['fan_mode'] = message["requests"]["fan_power_req"]
+        for i in range(10):
+            if self.logged_in:
+                break
+            await asyncio.sleep(1)
+        else:
+            raise ConfigEntryNotReady
+        response_id = await self.send('{ "endpoint": "ui_info", "args": null }')
+        LOGGER.info(f"Got None in response, RECONNECTING, response_id {response_id}.")
+        message = await self.update(response_id)
+        self.status['current_temperature'] = message["unit"]["temp_sup"]
+        self.status['setpoint'] = message["requests"]["temp_request"]
+        self.status['temp_oda'] = message["unit"]['temp_oda']
+        self.status['temp_ida'] = message["unit"]['temp_ida']
+        self.status['temp_eha'] = message["unit"]['temp_eha']
+        if self._max_flow:
+            self.status['fan_mode'] = round( float(message["requests"]["fan_power_req"])/
+                                            (float(self._max_flow)/100), -1
+                                           )
+            self.status['fan_eta_factor'] = round( float(message["unit"]["flow_eta"])/
+                                            (float(self._max_flow)/100), -1
+                                           )
+            self.status['fan_sup_factor'] = round( float(message["unit"]["flow_sup"])/
+                                            (float(self._max_flow)/100), -1
+                                           )
+        else:
+            self.status['fan_eta_factor'] = message["unit"]['fan_eta_factor']
+            self.status['fan_sup_factor'] = message["unit"]['fan_sup_factor']
+            self.status['fan_mode'] = message["requests"]["fan_power_req"]
 
     async def send(self,message):
         # sends message and returns id you can look for in update
@@ -233,6 +238,7 @@ class AmotionAtrea:
         LOGGER.debug("token is")
         await self.send('{"endpoint":"login","args":{"token":"%s"}}' % token)
         await self.ui_scheme()
+        self.logged_in = True
 
     async def ui_scheme(self):
         response_id = await self.send('{ "endpoint": "ui_info_scheme", "args": null }')
@@ -240,12 +246,13 @@ class AmotionAtrea:
         if "flow_ventilation_req" in message["requests"]:
             response_id = await self.send('{ "endpoint": "ui_control_scheme", "args": null }')
             message = await self.update(response_id)
-            self._max_flow = message["requests"]["types"]["flow_ventilation_req"]["max"]
-            self._min_flow = message["requests"]["types"]["flow_ventilation_req"]["min"]
+            self._max_flow = message["types"]["flow_ventilation_req"]["max"]
+            self._min_flow = message["types"]["flow_ventilation_req"]["min"]
 
     async def on_close(self) -> None:
-        raise Exception("failed")
-        #await self.connect(self.receive, self.on_close)
+        # raise Exception("failed")
+        LOGGER.info(f"RECONNECTING, {self.receive}, {self.on_close}")
+        await self.ws_connect()
 
     async def ws_connect(self) -> None:
         """Connect the websocket."""
