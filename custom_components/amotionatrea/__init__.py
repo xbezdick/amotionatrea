@@ -147,6 +147,9 @@ class AmotionAtrea:
             self.status['temp_oda'] = message["args"]["unit"]['temp_oda']
             self.status['temp_ida'] = message["args"]["unit"]['temp_ida']
             self.status['temp_eha'] = message["args"]["unit"]['temp_eha']
+            self.status['temp_eta'] = message["args"]["unit"]['temp_eta']
+            self.status['temp_sup'] = message["args"]["unit"]['temp_sup']
+            self.status['season_current'] = message["args"]["unit"]['season_current']
             if self._max_flow:
                 self.status['fan_mode'] = round( float(message["args"]
                                                               ["requests"]
@@ -183,32 +186,34 @@ class AmotionAtrea:
             raise Exception("Message with id %s was not received" % message_id)
 
     async def fetch(self):
-        if self.status['current_temperature'] is None:
-            for i in range(60):
-                if self.logged_in:
-                    break
-                await asyncio.sleep(1)
-            response_id = await self.send('{ "endpoint": "ui_info", "args": null }')
-            message = await self.update(response_id)
-            self.status['current_temperature'] = message["unit"]["temp_sup"]
-            self.status['setpoint'] = message["requests"]["temp_request"]
-            self.status['temp_oda'] = message["unit"]['temp_oda']
-            self.status['temp_ida'] = message["unit"]['temp_ida']
-            self.status['temp_eha'] = message["unit"]['temp_eha']
-            if self._max_flow:
-                self.status['fan_mode'] = round( float(message["requests"]["fan_power_req"])/
-                                                (float(self._max_flow)/100), -1
-                                               )
-                self.status['fan_eta_factor'] = round( float(message["unit"]["flow_eta"])/
-                                                (float(self._max_flow)/100), -1
-                                               )
-                self.status['fan_sup_factor'] = round( float(message["unit"]["flow_sup"])/
-                                                (float(self._max_flow)/100), -1
-                                               )
-            else:
-                self.status['fan_eta_factor'] = message["unit"]['fan_eta_factor']
-                self.status['fan_sup_factor'] = message["unit"]['fan_sup_factor']
-                self.status['fan_mode'] = message["requests"]["fan_power_req"]
+        for i in range(60):
+            if self.logged_in:
+                break
+            await asyncio.sleep(1)
+        else:
+            raise ConfigEntryNotReady
+        response_id = await self.send('{ "endpoint": "ui_info", "args": null }')
+        LOGGER.info(f"Got None in response, RECONNECTING, response_id {response_id}.")
+        message = await self.update(response_id)
+        self.status['current_temperature'] = message["unit"]["temp_sup"]
+        self.status['setpoint'] = message["requests"]["temp_request"]
+        self.status['temp_oda'] = message["unit"]['temp_oda']
+        self.status['temp_ida'] = message["unit"]['temp_ida']
+        self.status['temp_eha'] = message["unit"]['temp_eha']
+        if self._max_flow:
+            self.status['fan_mode'] = round( float(message["requests"]["fan_power_req"])/
+                                            (float(self._max_flow)/100), -1
+                                           )
+            self.status['fan_eta_factor'] = round( float(message["unit"]["flow_eta"])/
+                                            (float(self._max_flow)/100), -1
+                                           )
+            self.status['fan_sup_factor'] = round( float(message["unit"]["flow_sup"])/
+                                            (float(self._max_flow)/100), -1
+                                           )
+        else:
+            self.status['fan_eta_factor'] = message["unit"]['fan_eta_factor']
+            self.status['fan_sup_factor'] = message["unit"]['fan_sup_factor']
+            self.status['fan_mode'] = message["requests"]["fan_power_req"]
 
     async def send(self,message):
         # sends message and returns id you can look for in update
@@ -246,8 +251,9 @@ class AmotionAtrea:
             self._min_flow = message["types"]["flow_ventilation_req"]["min"]
 
     async def on_close(self) -> None:
-        raise Exception("failed")
-        #await self.connect(self.receive, self.on_close)
+        # raise Exception("failed")
+        LOGGER.info(f"RECONNECTING, {self.receive}, {self.on_close}")
+        await self.ws_connect()
 
     async def ws_connect(self) -> None:
         """Connect the websocket."""
@@ -288,6 +294,9 @@ class AmotionAtrea:
           'temp_oda': None,
           'temp_ida': None,
           'temp_eha': None,
+          'temp_sup': None,
+          'temp_eta': None,
+          'season_current': None,
           'fan_eta_factor': None,
           'fan_sup_factor': None
         }
