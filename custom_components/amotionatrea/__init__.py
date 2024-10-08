@@ -77,23 +77,23 @@ class AtreaWebsocket:
             await asyncio.sleep(1)
 
     async def connect(self, on_data, on_close):
-        try:
-            async with websockets.connect(
-                "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
-            ) as websocket:
-                try:
+        for i in range(10):
+            try:
+                async with websockets.connect(
+                    "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
+                ) as websocket:
                     self._websocket = websocket
                     async for message in websocket:
                         LOGGER.debug("Received %s" % message)
                         await on_data(json.loads(message))
-                except Exception as err:
-                    LOGGER.debug(err)
-                    await on_close()
-                    return
-        except Exception as err:
-            LOGGER.debug(err)
-            await on_close()
-            return
+            except websockets.ConnectionClosed:
+                LOGGER.debug("Connection closed, retrying...")
+                await asyncio.sleep(1)  # 
+            except Exception as err:
+                LOGGER.debug(err)
+                await on_close()
+                return
+            asyncio.sleep(1)
 
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
@@ -104,7 +104,7 @@ class AmotionAtreaCoordinator(DataUpdateCoordinator):
             LOGGER,
             name="AmotionAtrea",
             update_interval=timedelta(seconds=30),
-#always_update            always_update=True
+            always_update=True
         )
         self.aatrea = aatrea
 
@@ -172,8 +172,8 @@ class AmotionAtrea:
     async def update(self,message_id=None):
         LOGGER.debug("update %s" % message_id)
         if message_id:
-            # for now loop 30 times(?) before throwing error
-            for i in range(30):
+            # for now loop 10 times(?) before throwing error
+            for i in range(10):
                 if message_id in self._messages:
                     msg = self._messages[message_id]
                     del self._messages[message_id]
@@ -183,10 +183,12 @@ class AmotionAtrea:
                                                                            self._messages,
                                                                            i))
                 await asyncio.sleep(1)
-            raise Exception("Message with id %s was not received" % message_id)
+            LOGGER.debug(f"RECONNECTING, {self.receive}, {self.on_close}")
+            await self.ws_connect()
+            #raise ConfigEntryNotReady
 
     async def fetch(self):
-        for i in range(60):
+        for i in range(10):
             if self.logged_in:
                 break
             await asyncio.sleep(1)
