@@ -147,6 +147,9 @@ class AmotionAtrea:
             self.status['temp_oda'] = message["args"]["unit"]['temp_oda']
             self.status['temp_ida'] = message["args"]["unit"]['temp_ida']
             self.status['temp_eha'] = message["args"]["unit"]['temp_eha']
+            self.status['temp_eta'] = message["args"]["unit"]['temp_eta']
+            self.status['temp_sup'] = message["args"]["unit"]['temp_sup']
+            self.status['season_current'] = message["args"]["unit"]['season_current']
             if self._max_flow:
                 self.status['fan_mode'] = round( float(message["args"]
                                                               ["requests"]
@@ -293,6 +296,9 @@ class AmotionAtrea:
           'temp_oda': None,
           'temp_ida': None,
           'temp_eha': None,
+          'temp_sup': None,
+          'temp_eta': None,
+          'season_current': None,
           'fan_eta_factor': None,
           'fan_sup_factor': None
         }
