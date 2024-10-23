@@ -155,7 +155,7 @@ class AmotionAtrea:
             if self._max_flow:
                 self.status['fan_mode'] = round( float(message["args"]
                                                               ["requests"]
-                                                              ["fan_power_req"])/
+                                                              ["flow_ventilation_req"])/
                                                 (float(self._max_flow)/100), -1
                                                )
                 self.status['fan_eta_factor'] = round( float(message["args"]["unit"]["flow_eta"])/
@@ -268,7 +268,7 @@ class AmotionAtrea:
             flow_request = (float(self._max_flow)/100)*int(fan_mode)
             if flow_request < self._min_flow:
                 flow_request = self._min_flow
-            control = json.dumps({'variables': {"fan_power_req": int(flow_request)}})
+            control = json.dumps({'variables': {"flow_ventilation_req": int(flow_request)}})
         else:
             control = json.dumps({'variables': {"fan_power_req": int(fan_mode)}})
         response_id = await self.send('{ "endpoint": "control", "args": %s }' % control)
