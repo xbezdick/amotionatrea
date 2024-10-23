@@ -85,6 +85,8 @@ class AtreaWebsocket:
                     self._websocket = websocket
                     async for message in websocket:
                         LOGGER.debug("Received %s" % message)
+                        if "UNAUTHORIZED" in message.get("code"):
+                            raise websockets.ConnectionClosed
                         await on_data(json.loads(message))
             except websockets.ConnectionClosed:
                 LOGGER.debug("Connection closed, retrying...")
