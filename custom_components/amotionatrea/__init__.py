@@ -85,12 +85,11 @@ class AtreaWebsocket:
                     self._websocket = websocket
                     async for message in websocket:
                         LOGGER.debug("Received %s" % message)
-                        if "UNAUTHORIZED" in message.get("code"):
-                            raise websockets.ConnectionClosed
                         await on_data(json.loads(message))
             except websockets.ConnectionClosed:
                 LOGGER.debug("Connection closed, retrying...")
                 await asyncio.sleep(1)  # 
+                raise ConfigEntryNotReady
             except Exception as err:
                 LOGGER.debug(err)
                 await on_close()
@@ -135,6 +134,9 @@ class AmotionAtrea:
 
     async def receive(self, message):
         LOGGER.debug("receive message: %s" % message)
+        if message.get("code") == "UNAUTHORIZED":
+            # The token may have expired
+            raise ConfigEntryNotReady
         # {'args': {'active': False, 'countdown': 0, 'finish': {'day': 0, 'hour': 0, 'minute': 0, 'month': 0, 'year': 0}, 'sceneId': 0, 'start': {'day': 0, 'hour': 0, 'minute': 0, 'month': 0, 'year': 0}}, 'event': 'disposable_plan', 'type': 'event'}
         # {'code': 'OK', 'error': None, 'id': None, 'response': {'ui_diagram_data': {'bypass_estim': 100, 'damper_io_state': True, 'fan_eta_operating_time': 24, 'fan_sup_operating_time': 24, 'preheater_active': False, 'preheater_factor': 0, 'preheater_type': 'ELECTRO_PWM'}}, 'type': 'response'}
         # {'args': {'requests': {'fan_power_req': 30, 'temp_request': 18.5, 'work_regime': 'VENTILATION'}, 'states': {'active': {}}, 'unit': {'fan_eta_factor': 30, 'fan_sup_factor': 30, 'mode_current': 'NORMAL', 'season_current': 'NON_HEATING', 'temp_eha': 23.9, 'temp_eta': 23.9, 'temp_ida': 23.9, 'temp_oda': 22.9, 'temp_oda_mean': 22.25, 'temp_sup': 23.3}}, 'event': 'ui_info', 'type': 'event'}
@@ -185,8 +187,8 @@ class AmotionAtrea:
                                                                            self._messages,
                                                                            i))
                 await asyncio.sleep(1)
-            LOGGER.debug(f"RECONNECTING, {self.receive}, {self.on_close}")
-            await self.ws_connect()
+            LOGGER.debug(f"Update message: {self.receive}, {self.on_close}")
+            # await self.ws_connect()
             #raise ConfigEntryNotReady
 
     async def fetch(self):
@@ -195,9 +197,11 @@ class AmotionAtrea:
                 break
             await asyncio.sleep(1)
         else:
+            LOGGER.info(f"Logged in status: {self.logged_in}. Reconnecting.")
             raise ConfigEntryNotReady
         response_id = await self.send('{ "endpoint": "ui_info", "args": null }')
-        LOGGER.info(f"Got None in response, RECONNECTING, response_id {response_id}.")
+        LOGGER.debug(f"Got response_id {response_id}.")
+
         message = await self.update(response_id)
         self.status['current_temperature'] = message["unit"]["temp_sup"]
         self.status['setpoint'] = message["requests"]["temp_request"]
