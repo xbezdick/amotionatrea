@@ -183,6 +183,9 @@ class AmotionAtrea:
             raise Exception("Message with id %s was not received" % message_id)
 
     async def fetch(self):
+        # on units with flow call time on every update
+        if self._max_flow:
+            self.time()
         if self.status['current_temperature'] is None:
             for i in range(60):
                 if self.logged_in:
@@ -245,9 +248,23 @@ class AmotionAtrea:
             self._max_flow = message["types"]["flow_ventilation_req"]["max"]
             self._min_flow = message["types"]["flow_ventilation_req"]["min"]
 
+    async def time(self):
+        response_id = await self.send('{"endpoint":"time", "args": null }')
+        message = await self.update(response_id)
+        LOGGER.debug("TIME %s" % message)
+
     async def on_close(self) -> None:
-        raise Exception("failed")
-        #await self.connect(self.receive, self.on_close)
+        LOGGER.debug("Reconnecting %s" % self._fail_counter)
+        if self._fail_counter < 3:
+            entry.async_create_background_task(
+                hass, atrea.ws_connect(), "amotionatrea-ws_connect"
+            )
+            entry.async_create_background_task(
+                hass, atrea.login(), "amotionatrea-login"
+            )
+            self._fail_counter += 1
+        else:
+           raise Exception("Connection failed 3times, reinit")
 
     async def ws_connect(self) -> None:
         """Connect the websocket."""
@@ -277,6 +294,7 @@ class AmotionAtrea:
         self._websocket = AtreaWebsocket(host)
         self._max_flow = None
         self._min_flow = None
+        self._fail_counter = 0
 
         self.status = {
           'state': None,
