@@ -185,7 +185,7 @@ class AmotionAtrea:
     async def fetch(self):
         # on units with flow call time on every update
         if self._max_flow:
-            self.time()
+            await self.time()
         if self.status['current_temperature'] is None:
             for i in range(60):
                 if self.logged_in:
