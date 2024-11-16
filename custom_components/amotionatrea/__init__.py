@@ -67,6 +67,7 @@ class AtreaWebsocket:
     def __init__(self, host):
         self._host = host
         self._websocket = None
+        self.reconnect_delay = 2
 
     async def send(self, message):
         LOGGER.debug("Sending to ws %s" % message)
@@ -75,6 +76,20 @@ class AtreaWebsocket:
                 await self._websocket.send(message)
                 break
             await asyncio.sleep(1)
+
+    async def handle_messages(self, websocket, on_data):
+        try:
+            async for message in websocket:
+                try:
+                    decoded_message = message.decode('utf-8') # Process decoded_message
+                    await on_data(json.loads(decoded_message))
+                except AttributeError:
+                    await on_data(json.loads(message))
+                except UnicodeDecodeError as e:
+                    LOGGER.debug(f"Decoding error: {e}")
+        except websockets.exceptions.ConnectionClosedError as e:
+            LOGGER.debug(f"Connection closed: {e}")
+            raise e
 
     async def connect(self, on_data, on_close):
         try:
@@ -85,15 +100,16 @@ class AtreaWebsocket:
                     self._websocket = websocket
                     async for message in websocket:
                         LOGGER.debug("Received %s" % message)
-                        await on_data(json.loads(message))
-                except Exception as err:
-                    LOGGER.debug(err)
+                        await self.handle_messages(websocket, on_data)
+                except (websockets.exceptions.ConnectionClosedError,
+                        websockets.exceptions.ConnectionClosedOK) as e:
+                    LOGGER.debug("Connection closed, retrying...")
+                    await asyncio.sleep(self.reconnect_delay)
+                    self.reconnect_delay = min(self.reconnect_delay * 2, 60)
                     await on_close()
-                    return
         except Exception as err:
-            LOGGER.debug(err)
-            await on_close()
-            return
+            LOGGER.debug(f"Unexpected error: {err}")
+            raise ConfigEntryNotReady from err
 
     async def disconnect(self):
         self._websocket.close()
@@ -281,7 +297,7 @@ class AmotionAtrea:
 
             self._fail_counter += 1
         else:
-           raise Exception("Connection failed 3times, reinit")
+            raise Exception("Connection failed 3times, reinit")
 
     async def ws_connect(self) -> None:
         """Connect the websocket."""
