@@ -76,25 +76,36 @@ class AtreaWebsocket:
                 break
             await asyncio.sleep(1)
 
+    async def handle_messages(self, websocket, on_data): 
+        try: 
+            async for message in websocket: 
+                try: 
+                    decoded_message = message.decode('utf-8') # Process decoded_message 
+                    await on_data(json.loads(decoded_message))
+                except AttributeError:
+                    await on_data(json.loads(message))
+                except UnicodeDecodeError as e: 
+                    LOGGER.debug(f"Decoding error: {e}") 
+        except websockets.exceptions.ConnectionClosedError as e: 
+            LOGGER.debug(f"Connection closed: {e}") 
+            raise e
+
     async def connect(self, on_data, on_close):
-        for i in range(10):
+        while True:
             try:
                 async with websockets.connect(
                     "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
                 ) as websocket:
                     self._websocket = websocket
-                    async for message in websocket:
-                        LOGGER.debug("Received %s" % message)
-                        await on_data(json.loads(message))
-            except websockets.ConnectionClosed:
+                    await self.handle_messages(websocket, on_data)    
+            except (websockets.exceptions.ConnectionClosedError, 
+                    websockets.exceptions.ConnectionClosedOK, ) as e:
                 LOGGER.debug("Connection closed, retrying...")
-                await asyncio.sleep(1)  # 
-                raise ConfigEntryNotReady
+                await asyncio.sleep(self.reconnect_delay )  # 
+                self.reconnect_delay = min(self.reconnect_delay * 2, 60)
             except Exception as err:
-                LOGGER.debug(err)
-                await on_close()
-                return
-            asyncio.sleep(1)
+                LOGGER.debug(f"Unexpected error: {err}") 
+                raise ConfigEntryNotReady from e
 
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
