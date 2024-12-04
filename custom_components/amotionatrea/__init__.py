@@ -67,6 +67,7 @@ class AtreaWebsocket:
     def __init__(self, host):
         self._host = host
         self._websocket = None
+        self.reconnect_delay = 2
 
     async def send(self, message):
         LOGGER.debug("Sending to ws %s" % message)
