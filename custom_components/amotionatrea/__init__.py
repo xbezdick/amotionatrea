@@ -92,21 +92,27 @@ class AtreaWebsocket:
             raise e
 
     async def connect(self, on_data, on_close):
+        """Establish a websocket connection."""
         while True:
             try:
                 async with websockets.connect(
                     "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
                 ) as websocket:
                     self._websocket = websocket
-                    await self.handle_messages(websocket, on_data)    
+                    self._connected = True
+                    LOGGER.info("WebSocket connection established")
+                    await self.handle_messages(websocket, on_data)
             except (websockets.exceptions.ConnectionClosedError, 
-                    websockets.exceptions.ConnectionClosedOK, ) as e:
+                    websockets.exceptions.ConnectionClosedOK) as e:
                 LOGGER.debug("Connection closed, retrying...")
-                await asyncio.sleep(self.reconnect_delay )  # 
+                self._connected = False
+                await asyncio.sleep(self.reconnect_delay)
                 self.reconnect_delay = min(self.reconnect_delay * 2, 60)
             except Exception as err:
-                LOGGER.debug(f"Unexpected error: {err}") 
-                raise ConfigEntryNotReady from e
+                LOGGER.debug(f"Unexpected error: {err}")
+                self._connected = False
+                await asyncio.sleep(self.reconnect_delay)
+                self.reconnect_delay = min(self.reconnect_delay * 2, 60)
 
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
@@ -201,7 +207,7 @@ class AmotionAtrea:
                 await asyncio.sleep(1)
             LOGGER.debug(f"Update message: {self.receive}, {self.on_close}")
             # await self.ws_connect()
-            #raise ConfigEntryNotReady
+            # raise ConfigEntryNotReady
 
     async def fetch(self):
         for i in range(10):
