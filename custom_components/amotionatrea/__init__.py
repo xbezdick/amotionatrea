@@ -1,7 +1,7 @@
 import json
 import logging
 import asyncio
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 import websockets
 
@@ -35,7 +35,7 @@ PLATFORMS = [Platform.CLIMATE, Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """ Setup connection to atrea """
     try:
-        atrea = AmotionAtrea(hass,
+        atrea = AmotionAtrea(hass, entry,
                              entry.data[CONF_HOST],
                              entry.data[CONF_USERNAME],
                              entry.data[CONF_PASSWORD])
@@ -95,6 +95,9 @@ class AtreaWebsocket:
             await on_close()
             return
 
+    async def disconnect(self):
+        self._websocket.close()
+
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
 
@@ -104,7 +107,7 @@ class AmotionAtreaCoordinator(DataUpdateCoordinator):
             LOGGER,
             name="AmotionAtrea",
             update_interval=timedelta(seconds=30),
-#always_update            always_update=True
+            always_update=True
         )
         self.aatrea = aatrea
 
@@ -136,7 +139,10 @@ class AmotionAtrea:
         # {'args': {'active': False, 'countdown': 0, 'finish': {'day': 0, 'hour': 0, 'minute': 0, 'month': 0, 'year': 0}, 'sceneId': 0, 'start': {'day': 0, 'hour': 0, 'minute': 0, 'month': 0, 'year': 0}}, 'event': 'disposable_plan', 'type': 'event'}
         # {'code': 'OK', 'error': None, 'id': None, 'response': {'ui_diagram_data': {'bypass_estim': 100, 'damper_io_state': True, 'fan_eta_operating_time': 24, 'fan_sup_operating_time': 24, 'preheater_active': False, 'preheater_factor': 0, 'preheater_type': 'ELECTRO_PWM'}}, 'type': 'response'}
         # {'args': {'requests': {'fan_power_req': 30, 'temp_request': 18.5, 'work_regime': 'VENTILATION'}, 'states': {'active': {}}, 'unit': {'fan_eta_factor': 30, 'fan_sup_factor': 30, 'mode_current': 'NORMAL', 'season_current': 'NON_HEATING', 'temp_eha': 23.9, 'temp_eta': 23.9, 'temp_ida': 23.9, 'temp_oda': 22.9, 'temp_oda_mean': 22.25, 'temp_sup': 23.3}}, 'event': 'ui_info', 'type': 'event'}
+        # {"code":"UNAUTHORIZED","error":"Unauthorized: No authorized user (or missing token)","id":9,"response":null,"type":"response"}
         if 'id' in message and message['id']:
+            if message['code'] == 'UNAUTHORIZED':
+                LOGGER.debug("BORK")
             LOGGER.debug("ID IS: %s" % message['id'])
             self._messages[message['id']] = message['response']
             LOGGER.debug(message['response'])
@@ -147,6 +153,10 @@ class AmotionAtrea:
             self.status['temp_oda'] = message["args"]["unit"]['temp_oda']
             self.status['temp_ida'] = message["args"]["unit"]['temp_ida']
             self.status['temp_eha'] = message["args"]["unit"]['temp_eha']
+            self.status['temp_eta'] = message["args"]["unit"]['temp_eta']
+            self.status['temp_sup'] = message["args"]["unit"]['temp_sup']
+            self.status['season_current'] = message["args"]["unit"]['season_current']
+            self.status['last_update'] = datetime.now()
             if self._max_flow:
                 self.status['fan_mode'] = round( float(message["args"]
                                                               ["requests"]
@@ -180,13 +190,16 @@ class AmotionAtrea:
                                                                            self._messages,
                                                                            i))
                 await asyncio.sleep(1)
-            raise Exception("Message with id %s was not received" % message_id)
+            await self._websocket.disconnect()
+            await self.on_close()
 
     async def fetch(self):
         # on units with flow call time on every update
         if self._max_flow:
             await self.time()
-        if self.status['current_temperature'] is None:
+        LOGGER.debug(self.status['last_update'])
+        if ( self.status['current_temperature'] is None or
+             ( datetime.now() - self.status['last_update'] >= timedelta(minutes=2) )):
             for i in range(60):
                 if self.logged_in:
                     break
@@ -198,6 +211,10 @@ class AmotionAtrea:
             self.status['temp_oda'] = message["unit"]['temp_oda']
             self.status['temp_ida'] = message["unit"]['temp_ida']
             self.status['temp_eha'] = message["unit"]['temp_eha']
+            self.status['temp_eta'] = message["unit"]['temp_eta']
+            self.status['temp_sup'] = message["unit"]['temp_sup']
+            self.status['season_current'] = message["unit"]['season_current']
+            self.status['last_update'] = datetime.now()
             if self._max_flow:
                 self.status['fan_mode'] = round( float(message["requests"]["flow_ventilation_req"])/
                                                 (float(self._max_flow)/100), -1
@@ -256,12 +273,12 @@ class AmotionAtrea:
     async def on_close(self) -> None:
         LOGGER.debug("Reconnecting %s" % self._fail_counter)
         if self._fail_counter < 3:
-            entry.async_create_background_task(
-                hass, atrea.ws_connect(), "amotionatrea-ws_connect"
+            self._entry.async_create_background_task(
+                self._hass, self.ws_connect(), "amotionatrea-ws_connect"
             )
-            entry.async_create_background_task(
-                hass, atrea.login(), "amotionatrea-login"
-            )
+            await self.login()
+            self._msg_id = 0
+
             self._fail_counter += 1
         else:
            raise Exception("Connection failed 3times, reinit")
@@ -281,9 +298,10 @@ class AmotionAtrea:
         response_id = await self.send('{ "endpoint": "control", "args": %s }' % control)
         await self.update(response_id)
 
-    def __init__(self, hass, host, username, password) -> None:
+    def __init__(self, hass, entry, host, username, password) -> None:
         """Initialize the Daikin Handle."""
         self._hass = hass
+        self._entry = entry
         self._host = host
         self._username = username
         self._password = password
@@ -307,5 +325,9 @@ class AmotionAtrea:
           'temp_ida': None,
           'temp_eha': None,
           'fan_eta_factor': None,
-          'fan_sup_factor': None
+          'fan_sup_factor': None,
+          'temp_sup': None,
+          'temp_eta': None,
+          'season_current': None,
+          'last_update': None
         }

@@ -48,8 +48,8 @@ ATREA_SENSORS: tuple[AtreaSensorEntityDescription, ...] = (
     AtreaSensorEntityDescription(
         key="outside_temperature",
         translation_key="outside_temperature",
-        name="Outside Temperature",
-        icon="mdi:thermometer",
+        name="Outdoor Air Temperature",
+        icon="mdi:home-import-outline",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -58,8 +58,8 @@ ATREA_SENSORS: tuple[AtreaSensorEntityDescription, ...] = (
     AtreaSensorEntityDescription(
         key="inside_temperature",
         translation_key="inside_temperature",
-        name="Inside Temperature",
-        icon="mdi:thermometer",
+        name="Indoor Air Temperature",
+        icon="mdi:home-thermometer",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -68,8 +68,8 @@ ATREA_SENSORS: tuple[AtreaSensorEntityDescription, ...] = (
     AtreaSensorEntityDescription(
         key="exhaust_temperature",
         translation_key="exaust_temperature",
-        name="Exhaust Temperature",
-        icon="mdi:thermometer",
+        name="Exhaust Air Temperature",
+        icon="mdi:home-export-outline",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -82,6 +82,35 @@ ATREA_SENSORS: tuple[AtreaSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.POWER_FACTOR,
         state_class=SensorStateClass.MEASUREMENT,
         json_value="fan_eta_factor",
+    ),
+    AtreaSensorEntityDescription(
+        key="supply_air_temperature",
+        translation_key="supply_temperature",
+        name="Supply Air Temperature",
+        icon="mdi:thermometer",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        json_value="temp_sup",
+    ),
+    AtreaSensorEntityDescription(
+        key="extract_temperature",
+        translation_key="extract_temperature",
+        name="Air Extract Temperature",
+        icon="mdi:thermometer",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        json_value="temp_eta",
+    ),
+    AtreaSensorEntityDescription(
+        key="season_current",
+        translation_key="season_current",
+        name="Current season ",
+        icon="mdi:sun-snowflake-variant",
+        device_class=SensorDeviceClass.ENUM	,
+        options=["NON_HEATING", "HEATING"],
+        json_value="season_current",
     ),
     AtreaSensorEntityDescription(
         key="fan_sup_factor",
@@ -139,6 +168,8 @@ class AAtreaDeviceSensor(
             sw_version="FIXME",
         )
         self.updatePending = False
+        LOGGER.debug(self._attr_device_info)
+        LOGGER.debug(self._attr_unique_id)
 
     @property
     def native_value(self) -> float | None:

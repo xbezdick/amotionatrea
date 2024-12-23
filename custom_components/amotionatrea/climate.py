@@ -88,6 +88,8 @@ class AAtreaDevice(
             name=self._name,
             sw_version="FIXME",
         )
+        LOGGER.debug(self._attr_device_info)
+        LOGGER.debug(self._attr_unique_id)
 
         self._state = None
         self._mode = None
