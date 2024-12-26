@@ -3,8 +3,6 @@ import logging
 import asyncio
 from datetime import timedelta, datetime
 
-import websockets
-
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
@@ -23,12 +21,12 @@ from homeassistant.components.climate.const import (
     HVAC_MODE_FAN_ONLY,
 )
 
-
 from .const import (
      DOMAIN,
      TIMEOUT,
      LOGGER,
 )
+from .websocket import AtreaWebsocket
 
 PLATFORMS = [Platform.CLIMATE, Platform.SENSOR]
 
@@ -41,9 +39,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                              entry.data[CONF_PASSWORD])
         entry.async_create_background_task(
             hass, atrea.ws_connect(), "amotionatrea-ws_connect"
-        )
-        entry.async_create_background_task(
-            hass, atrea.login(), "amotionatrea-login"
         )
     except Exception as e:
         raise ConfigEntryNotReady from e
@@ -62,57 +57,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-
-class AtreaWebsocket:
-    def __init__(self, host):
-        self._host = host
-        self._websocket = None
-        self.reconnect_delay = 2
-
-    async def send(self, message):
-        LOGGER.debug("Sending to ws %s" % message)
-        for i in range(120):
-            if self._websocket:
-                await self._websocket.send(message)
-                break
-            await asyncio.sleep(1)
-
-    async def handle_messages(self, websocket, on_data):
-        try:
-            async for message in websocket:
-                try:
-                    decoded_message = message.decode('utf-8') # Process decoded_message
-                    await on_data(json.loads(decoded_message))
-                except AttributeError:
-                    await on_data(json.loads(message))
-                except UnicodeDecodeError as e:
-                    LOGGER.debug(f"Decoding error: {e}")
-        except websockets.exceptions.ConnectionClosedError as e:
-            LOGGER.debug(f"Connection closed: {e}")
-            raise e
-
-    async def connect(self, on_data, on_close):
-        try:
-            async with websockets.connect(
-                "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
-            ) as websocket:
-                try:
-                    self._websocket = websocket
-                    async for message in websocket:
-                        LOGGER.debug("Received %s" % message)
-                        await self.handle_messages(websocket, on_data)
-                except (websockets.exceptions.ConnectionClosedError,
-                        websockets.exceptions.ConnectionClosedOK) as e:
-                    LOGGER.debug("Connection closed, retrying...")
-                    await asyncio.sleep(self.reconnect_delay)
-                    self.reconnect_delay = min(self.reconnect_delay * 2, 60)
-                    await on_close()
-        except Exception as err:
-            LOGGER.debug(f"Unexpected error: {err}")
-            raise ConfigEntryNotReady from err
-
-    async def disconnect(self):
-        self._websocket.close()
 
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
@@ -143,12 +87,21 @@ class AmotionAtreaCoordinator(DataUpdateCoordinator):
         #    # and start a config flow with SOURCE_REAUTH (async_step_reauth)
         #    raise ConfigEntryAuthFailed from err
         except Exception as err:
-            raise UpdateFailed(f"Error communicating with API: {err}")
-
+            raise UpdateFailed("Error communicating with API: {err}") from err
 
 
 class AmotionAtrea:
     """Keep the AmotionAtrea instance in one place and centralize websocket use."""
+
+    async def on_close(self) -> None:
+        LOGGER.debug("Reset counter")
+        self._msg_id = 0
+
+    async def on_connect(self):
+        LOGGER.debug("Connected")
+        self._entry.async_create_background_task(
+            self._hass, self.login(), "amotionatrea-login"
+        )
 
     async def receive(self, message):
         LOGGER.debug("receive message: %s" % message)
@@ -159,6 +112,7 @@ class AmotionAtrea:
         if 'id' in message and message['id']:
             if message['code'] == 'UNAUTHORIZED':
                 LOGGER.debug("BORK")
+                #await self.login()
             LOGGER.debug("ID IS: %s" % message['id'])
             self._messages[message['id']] = message['response']
             LOGGER.debug(message['response'])
@@ -206,8 +160,6 @@ class AmotionAtrea:
                                                                            self._messages,
                                                                            i))
                 await asyncio.sleep(1)
-            await self._websocket.disconnect()
-            await self.on_close()
 
     async def fetch(self):
         # on units with flow call time on every update
@@ -286,22 +238,10 @@ class AmotionAtrea:
         message = await self.update(response_id)
         LOGGER.debug("TIME %s" % message)
 
-    async def on_close(self) -> None:
-        LOGGER.debug("Reconnecting %s" % self._fail_counter)
-        if self._fail_counter < 3:
-            self._entry.async_create_background_task(
-                self._hass, self.ws_connect(), "amotionatrea-ws_connect"
-            )
-            await self.login()
-            self._msg_id = 0
-
-            self._fail_counter += 1
-        else:
-            raise Exception("Connection failed 3times, reinit")
 
     async def ws_connect(self) -> None:
         """Connect the websocket."""
-        await self._websocket.connect(self.receive, self.on_close)
+        await self._websocket.connect(self.on_connect, self.receive, self.on_close)
 
     async def set_fan_mode(self, fan_mode):
         if self._max_flow:
@@ -328,7 +268,6 @@ class AmotionAtrea:
         self._websocket = AtreaWebsocket(host)
         self._max_flow = None
         self._min_flow = None
-        self._fail_counter = 0
 
         self.status = {
           'state': None,
