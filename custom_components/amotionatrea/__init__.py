@@ -15,11 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from homeassistant.components.climate.const import (
-    HVAC_MODE_OFF,
-    HVAC_MODE_AUTO,
-    HVAC_MODE_FAN_ONLY,
-)
+from homeassistant.components.climate import HVACMode
 
 from .const import (
      DOMAIN,
@@ -274,7 +270,7 @@ class AmotionAtrea:
           'current_temperature': None,
           'setpoint': None,
           'mode': None,
-          'current_hvac_mode': HVAC_MODE_AUTO,
+          'current_hvac_mode': HVACMode.AUTO,
           'fan_mode': None,
           'temp_oda': None,
           'temp_ida': None,

@@ -29,14 +29,8 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_USERNAME,
-    TEMP_CELSIUS,
+    UnitOfTemperature,
     ATTR_TEMPERATURE
-)
-
-from homeassistant.components.climate.const import (
-    HVAC_MODE_OFF,
-    HVAC_MODE_AUTO,
-    HVAC_MODE_FAN_ONLY,
 )
 
 from .const import (
@@ -93,11 +87,11 @@ class AAtreaDevice(
 
         self._state = None
         self._mode = None
-        self._current_hvac_mode = HVAC_MODE_AUTO
+        self._current_hvac_mode = HVACMode.AUTO
 
     @property
     def temperature_unit(self):
-        return TEMP_CELSIUS
+        return UnitOfTemperature.CELSIUS
 
 
 
