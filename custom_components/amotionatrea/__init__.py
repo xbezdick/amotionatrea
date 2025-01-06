@@ -3,8 +3,6 @@ import logging
 import asyncio
 from datetime import timedelta, datetime
 
-import websockets
-
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
@@ -17,18 +15,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from homeassistant.components.climate.const import (
-    HVAC_MODE_OFF,
-    HVAC_MODE_AUTO,
-    HVAC_MODE_FAN_ONLY,
-)
-
+from homeassistant.components.climate import HVACMode
 
 from .const import (
      DOMAIN,
      TIMEOUT,
      LOGGER,
 )
+from .websocket import AtreaWebsocket
 
 PLATFORMS = [Platform.CLIMATE, Platform.SENSOR]
 
@@ -41,9 +35,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                              entry.data[CONF_PASSWORD])
         entry.async_create_background_task(
             hass, atrea.ws_connect(), "amotionatrea-ws_connect"
-        )
-        entry.async_create_background_task(
-            hass, atrea.login(), "amotionatrea-login"
         )
     except Exception as e:
         raise ConfigEntryNotReady from e
@@ -62,41 +53,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-
-class AtreaWebsocket:
-    def __init__(self, host):
-        self._host = host
-        self._websocket = None
-
-    async def send(self, message):
-        LOGGER.debug("Sending to ws %s" % message)
-        for i in range(120):
-            if self._websocket:
-                await self._websocket.send(message)
-                break
-            await asyncio.sleep(1)
-
-    async def connect(self, on_data, on_close):
-        try:
-            async with websockets.connect(
-                "ws://%s/api/ws" % self._host, ping_interval=None, ping_timeout=None, logger=LOGGER
-            ) as websocket:
-                try:
-                    self._websocket = websocket
-                    async for message in websocket:
-                        LOGGER.debug("Received %s" % message)
-                        await on_data(json.loads(message))
-                except Exception as err:
-                    LOGGER.debug(err)
-                    await on_close()
-                    return
-        except Exception as err:
-            LOGGER.debug(err)
-            await on_close()
-            return
-
-    async def disconnect(self):
-        self._websocket.close()
 
 class AmotionAtreaCoordinator(DataUpdateCoordinator):
     """AmotionAtrea custom coordinator."""
@@ -127,12 +83,21 @@ class AmotionAtreaCoordinator(DataUpdateCoordinator):
         #    # and start a config flow with SOURCE_REAUTH (async_step_reauth)
         #    raise ConfigEntryAuthFailed from err
         except Exception as err:
-            raise UpdateFailed(f"Error communicating with API: {err}")
-
+            raise UpdateFailed("Error communicating with API: {err}") from err
 
 
 class AmotionAtrea:
     """Keep the AmotionAtrea instance in one place and centralize websocket use."""
+
+    async def on_close(self) -> None:
+        LOGGER.debug("Reset counter")
+        self._msg_id = 0
+
+    async def on_connect(self):
+        LOGGER.debug("Connected")
+        self._entry.async_create_background_task(
+            self._hass, self.login(), "amotionatrea-login"
+        )
 
     async def receive(self, message):
         LOGGER.debug("receive message: %s" % message)
@@ -143,6 +108,7 @@ class AmotionAtrea:
         if 'id' in message and message['id']:
             if message['code'] == 'UNAUTHORIZED':
                 LOGGER.debug("BORK")
+                #await self.login()
             LOGGER.debug("ID IS: %s" % message['id'])
             self._messages[message['id']] = message['response']
             LOGGER.debug(message['response'])
@@ -190,8 +156,6 @@ class AmotionAtrea:
                                                                            self._messages,
                                                                            i))
                 await asyncio.sleep(1)
-            await self._websocket.disconnect()
-            await self.on_close()
 
     async def fetch(self):
         # on units with flow call time on every update
@@ -270,22 +234,10 @@ class AmotionAtrea:
         message = await self.update(response_id)
         LOGGER.debug("TIME %s" % message)
 
-    async def on_close(self) -> None:
-        LOGGER.debug("Reconnecting %s" % self._fail_counter)
-        if self._fail_counter < 3:
-            self._entry.async_create_background_task(
-                self._hass, self.ws_connect(), "amotionatrea-ws_connect"
-            )
-            await self.login()
-            self._msg_id = 0
-
-            self._fail_counter += 1
-        else:
-           raise Exception("Connection failed 3times, reinit")
 
     async def ws_connect(self) -> None:
         """Connect the websocket."""
-        await self._websocket.connect(self.receive, self.on_close)
+        await self._websocket.connect(self.on_connect, self.receive, self.on_close)
 
     async def set_fan_mode(self, fan_mode):
         if self._max_flow:
@@ -312,14 +264,13 @@ class AmotionAtrea:
         self._websocket = AtreaWebsocket(host)
         self._max_flow = None
         self._min_flow = None
-        self._fail_counter = 0
 
         self.status = {
           'state': None,
           'current_temperature': None,
           'setpoint': None,
           'mode': None,
-          'current_hvac_mode': HVAC_MODE_AUTO,
+          'current_hvac_mode': HVACMode.AUTO,
           'fan_mode': None,
           'temp_oda': None,
           'temp_ida': None,
