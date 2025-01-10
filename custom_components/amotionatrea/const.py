@@ -3,12 +3,16 @@ from homeassistant.components.climate.const import (
     SUPPORT_PRESET_MODE,
     SUPPORT_TARGET_TEMPERATURE,
     HVAC_MODE_OFF,
+    HVAC_MODE_HEAT,
+    HVAC_MODE_COOL,
     HVAC_MODE_AUTO,
     HVAC_MODE_FAN_ONLY,
     SUPPORT_FAN_MODE,
+
 )
 
 DOMAIN = "amotionatrea"
+CONF_HOST = "host"
 
 LOGGER = logging.getLogger(__name__)
 TIMEOUT = 120
@@ -43,4 +47,4 @@ ALL_PRESET_LIST = [
     "D4",
 ]
 
-HVAC_MODES = [HVAC_MODE_OFF, HVAC_MODE_AUTO, HVAC_MODE_FAN_ONLY]
+HVAC_MODES = [HVAC_MODE_OFF, HVAC_MODE_AUTO, HVAC_MODE_HEAT, HVAC_MODE_COOL]
