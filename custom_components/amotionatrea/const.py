@@ -1,14 +1,11 @@
 import logging
 from homeassistant.components.climate.const import (
-    SUPPORT_PRESET_MODE,
-    SUPPORT_TARGET_TEMPERATURE,
-    HVAC_MODE_OFF,
-    HVAC_MODE_HEAT,
-    HVAC_MODE_COOL,
-    HVAC_MODE_AUTO,
-    HVAC_MODE_FAN_ONLY,
-    SUPPORT_FAN_MODE,
-
+    HVACMode,
+    HVACAction,
+    HVACMode,
+    HVACAction,
+    HVACMode,
+    ClimateEntityFeature,
 )
 
 DOMAIN = "amotionatrea"
@@ -17,7 +14,7 @@ CONF_HOST = "host"
 LOGGER = logging.getLogger(__name__)
 TIMEOUT = 120
 
-SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE | SUPPORT_PRESET_MODE
+SUPPORT_FLAGS = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
 DEFAULT_NAME = "Atrea"
 STATE_MANUAL = "manual"
 STATE_UNKNOWN = "unknown"
@@ -47,4 +44,11 @@ ALL_PRESET_LIST = [
     "D4",
 ]
 
-HVAC_MODES = [HVAC_MODE_OFF, HVAC_MODE_AUTO, HVAC_MODE_HEAT, HVAC_MODE_COOL]
+HVAC_MODES = [HVACMode.HEAT,
+    HVACMode.COOL,
+    HVACMode.OFF,
+    HVACMode.AUTO,
+    HVACAction.IDLE,
+    HVACAction.HEATING,
+    HVACAction.COOLING,
+    ]

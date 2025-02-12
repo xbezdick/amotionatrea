@@ -1,8 +1,6 @@
 import json
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
-    SUPPORT_TARGET_TEMPERATURE,
-    HVAC_MODE_FAN_ONLY,
     HVACAction,
     HVACMode,
 )
@@ -13,7 +11,6 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, LOGGER
 
 from homeassistant.components.climate import (
-    ATTR_HVAC_MODE,
     ClimateEntity,
     ClimateEntityFeature,
     HVACMode,
@@ -24,7 +21,7 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_USERNAME,
-    TEMP_CELSIUS,
+    UnitOfTemperature,
     ATTR_TEMPERATURE
 )
 
@@ -87,7 +84,7 @@ class AtreaClimate(CoordinatorEntity, ClimateEntity):
     @property
     def temperature_unit(self):
         """Return the unit of measurement."""
-        return TEMP_CELSIUS
+        return UnitOfTemperature.CELSIUS 
     
     @property
     def current_temperature(self):
