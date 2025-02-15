@@ -176,7 +176,7 @@ class AtreaClimate(CoordinatorEntity, ClimateEntity):
 
     @property
     def fan_modes(self):
-        return ["0", "10", "20", "30","35," "40", "45", "50",
+        return ["0", "10", "20", "30", "35", "40", "45", "50",
                  "55", "60", "65", "70", "75", "80", "85", "90", "95", "100"]
 
     async def async_set_fan_mode(self, fan_mode):
