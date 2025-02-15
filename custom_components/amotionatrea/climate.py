@@ -172,7 +172,7 @@ class AtreaClimate(CoordinatorEntity, ClimateEntity):
         fan_mode = self.coordinator.data.get('ui_info_data',{}).get('requests',{}).get('fan_power_req')
         if fan_mode is None:
             return None
-        return str(round(fan_mode, -1))
+        return str(int(fan_mode))  # Convert to int first to remove decimals
 
     @property
     def fan_modes(self):
