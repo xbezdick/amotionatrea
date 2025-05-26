@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_NAME,
-    CONF_HOST,
     UnitOfEnergy,
     UnitOfTemperature,
     PERCENTAGE,
@@ -129,15 +128,12 @@ async def async_setup_entry(
     async_add_entities: Callable,
 ):
     sensor_name = entry.data.get(CONF_NAME)
-    if sensor_name is None:
-        sensor_name = "aatrea"
-
     coordinator: AmotionAtreaCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[AAtreaDeviceSensor] = [
-        AAtreaDeviceSensor(coordinator, entry, description, sensor_name)
+        AAtreaDeviceSensor(coordinator, description, sensor_name)
         for description in ATREA_SENSORS
     ]
-    async_add_entities(entities)
+    async_add_entities(entities, update_before_add=True)
 
 
 class AAtreaDeviceSensor(
@@ -150,29 +146,28 @@ class AAtreaDeviceSensor(
     def __init__(
         self,
         coordinator,
-        entry,
         description: AtreaSensorEntityDescription,
-        sensor_name,
+        sensor_name
     ) -> None:
         super().__init__(coordinator)
         self._atrea = coordinator.aatrea
         self.entity_description = description
-        self._name = sensor_name
-        self._attr_unique_id = "%s-%s-%s" % (sensor_name, entry.data.get(CONF_HOST), description.key)
-        self._device_unique_id = "%s-%s" % (sensor_name, entry.data.get(CONF_HOST))
+        self._attr_name = description.name
+        self._attr_unique_id = "%s-%s" % (sensor_name, f"amotionatrea_{description.key}")
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, self._device_unique_id)},
-            manufacturer="Atrea",
-            model="TODOFIXME",
-            name=self._name,
-            sw_version="FIXME",
+            identifiers={(DOMAIN, self._atrea.name)},
+            manufacturer=self._atrea.brand,
+            model=self._atrea.model,
+            name=self._atrea.name,
+            sw_version=self._atrea.sw_version,
+            serial_number=self._atrea.serial,
         )
-        self.updatePending = False
-        LOGGER.debug(self._attr_device_info)
-        LOGGER.debug(self._attr_unique_id)
 
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        LOGGER.debug("CALLED %s" % self._name)
         return self._atrea.status[self.entity_description.json_value]
+
+    async def async_update(self):
+        """Fetch new state data for the sensor."""
+        await self.coordinator.async_request_refresh()
