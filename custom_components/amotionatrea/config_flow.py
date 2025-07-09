@@ -31,11 +31,16 @@ from .const import (
 LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_URL): TextSelector(
-            TextSelectorConfig(type=TextSelectorType.URL)
-        ),
-        vol.Required(CONF_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
+        vol.Required(
+            CONF_URL,
+            description={"suggested_value": "ws://192.168.1.100:8080"},
+        ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
+        vol.Required(
+            CONF_USERNAME,
+        ): str,
+        vol.Required(
+            CONF_PASSWORD,
+        ): str,
     }
 )
 
@@ -74,29 +79,31 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step of the config flow."""
-        if self._async_current_entries():
-            return self.async_abort(reason="single_instance_allowed")
+        #if self._async_current_entries():
+        #    return self.async_abort(reason="single_instance_allowed")
+
         user_input = user_input or {}
         self.url = user_input.get(CONF_URL, self.url)
         self.name = user_input.get(CONF_NAME, self.name)
-        self.password = user_input.get(CONF_PASSWORD, self.password)
         self.username = user_input.get(CONF_USERNAME, self.username)
-        LOGGER.info(user_input)
+        self.password = user_input.get(CONF_PASSWORD, self.password)
 
         errors: dict[str, str] = {}
 
-        if self.atrea is None and self.username is None:
-            return self.async_show_form(
-                step_id="user",
-                data_schema=STEP_USER_DATA_SCHEMA,
-            )
-        if self.atrea is None:
+        # Validate URL format immediately
+        if not self.url:
+            errors["url"] = "required"
+        elif not (self.url.startswith("ws://") or self.url.startswith("wss://")):
+            errors["url"] = "invalid_url_format"
+
+        # If no URL errors, proceed to check connection
+        if not errors:
             try:
                 self.atrea = AmotionAtrea(
                     hass=self.hass,
-                    url=user_input[CONF_URL],
-                    username=user_input[CONF_USERNAME],
-                    password=user_input[CONF_PASSWORD]
+                    url=self.url,
+                    username=self.username,
+                    password=self.password
                 )
                 await self.atrea.fetch()
                 LOGGER.info("LOGGED")
@@ -111,25 +118,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception as e:
                 LOGGER.exception("Unexpected error during login: %s", e)
                 errors["base"] = "unknown"
-            if errors:
+
+        # Show the form again with errors if any
+        if errors:
+            if self.atrea:
                 del(self.atrea)
-                return self.async_show_form(
-                    data_schema=STEP_USER_DATA_SCHEMA,
-                    errors=errors
-                )
-        
+            return self.async_show_form(
+                step_id="user",
+                data_schema=STEP_USER_DATA_SCHEMA,
+                errors=errors
+            )
+
+        # Handle optional name field (if not provided earlier)
         if self.name is None:
             name_step_schema = vol.Schema(
                 {
                     vol.Required(
                         CONF_NAME,
-                        description={"suggested_value": self.atrea.name },
+                        description={"suggested_value": self.atrea.name},
                     ): str,
                 }
             )
             return self.async_show_form(
-                step_id="user",  data_schema=name_step_schema,
+                step_id="user",
+                data_schema=name_step_schema
             )
+
         return self.async_create_entry(
             title=f"{self.name}",
             data={
