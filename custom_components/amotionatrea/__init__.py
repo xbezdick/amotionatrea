@@ -170,9 +170,10 @@ class AmotionAtrea:
                 # mingle the message to use single function to update status
                 message["args"] = message
                 await self._update_status(message)
-        # Get maintenance data every 5 minutes
+        # Get maintenance data and ui_diagram_data every 5 minutes
         if datetime.now() - self.status['last_maintenance_update'] >= timedelta(minutes=5):
             await self.async_get_maintenance_data()
+            await self.async_get_diagram_data()
 
     async def send(self, message):
         msg = json.loads(message)
@@ -231,18 +232,28 @@ class AmotionAtrea:
             self._max_flow = self.control_scheme["types"]["flow_ventilation_req"]["max"]
             self._min_flow = self.control_scheme["types"]["flow_ventilation_req"]["min"]
 
+    async def async_get_diagram_data(self):
+        """Fetch diagram data including bypass_estim from the server."""
+        response_id = await self.send('{"endpoint": "ui_diagram_data", "args": null}')
+        diagram_response = await self.update(response_id)
+        if diagram_response:
+            # The server returns `ui_diagram_data` as a nested key in the response
+            ui_diagram = diagram_response.get("ui_diagram_data", {})
+            self.status['bypass_estim'] = ui_diagram.get("bypass_estim", None)
+            self.status['preheater_factor'] = ui_diagram.get("preheater_factor", None)
+
     async def async_get_maintenance_data(self):
         """ Get maintenance information like filter change dates and motor hours """
         response_id = await self.send('{"endpoint": "moments/get", "args": null}')
         moment_data = await self.update(response_id)
         self.status['last_maintenance_update'] = datetime.now()
-        self.status['filters_last_change'] = moment_data.get('filters', {})
+        self.status['filters_last_change'] = moment_data.get('lastFilterReset', {})
         self.status['inspection_date'] = moment_data.get('inspection', {})
 
         self.status['motor1_hours'] = round(moment_data['m1_register'] / 3600)
         self.status['motor2_hours'] = round(moment_data['m2_register'] / 3600)
         # UV lamp operating hours
-        if 'uv_lamp_register' in moment_data:
+        if 'uv_lamp_register' in moment_data and moment_data['uv_lamp_register'] > 0:
             self.status['uv_lamp_hours'] = round(moment_data['uv_lamp_register'] / 3600)
             self.has_uv_lamp = True
         else:
@@ -279,13 +290,11 @@ class AmotionAtrea:
         """
         mode = 'OFF'
         match hvac_mode:
-            case HVACMode.HEAT:
-                mode = 'HEATING'
-            case HVACMode.COOL:
-                mode = 'NON_HEATING'
+            case HVACMode.HEAT_COOL:
+                mode = 'VENTILATION'
             case HVACMode.AUTO:
-                mode = 'auto'
-        control = json.dumps({'variables': {"season_current": mode}})
+                mode = 'AUTO'
+        control = json.dumps({'variables': {"work_regime": mode}})
         response_id = await self.send('{ "endpoint": "control", "args": %s }' % control)
         await self.update(response_id)
 
@@ -329,12 +338,14 @@ class AmotionAtrea:
             'last_update': None,
             'has_heater': False,
             'has_cooler': False,
-            'filters_next_change': {},
+            'filters_last_change': {},
             'inspection_date': {},
             'motor1_hours': 0,
             'motor2_hours': 0,
-            'uv_lamp_hours': 0,
-            'last_maintenance_update': datetime.min
+            'uv_lamp_hours': None,
+            'last_maintenance_update': datetime.min,
+            'bypass_estim': None,
+            'preheater_factor': None,
         }
 
         self.model = None

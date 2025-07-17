@@ -1,5 +1,5 @@
 """Support for Amotion Atrea sensors."""
-import time
+
 import logging
 import json
 
@@ -14,7 +14,6 @@ from homeassistant.const import (
     PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -30,12 +29,10 @@ from homeassistant.components.sensor import (
     ENTITY_ID_FORMAT,
 )
 
-
-from .const import (
-    DOMAIN,
-)
+from .const import DOMAIN
 
 LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class AtreaSensorEntityDescription(SensorEntityDescription):
@@ -119,13 +116,35 @@ ATREA_SENSORS: tuple[AtreaSensorEntityDescription, ...] = (
         json_value="fan_sup_factor",
     ),
 
+    # Additional sensors from ui_diagram_data
+    AtreaSensorEntityDescription(
+        key="bypass_estim",
+        translation_key="bypass_estim",
+        name="Bypass Estimation",
+        icon="mdi:percent",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+        json_value="bypass_estim",
+    ),
+    AtreaSensorEntityDescription(
+        key="preheater_factor",
+        translation_key="preheater_factor",
+        name="Preheater Factor",
+        icon="mdi:percent",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        state_class=SensorStateClass.MEASUREMENT,
+        json_value="preheater_factor",
+    ),
+
     # New sensors for maintenance data
     AtreaSensorEntityDescription(
-        key="filters_next_change",
-        translation_key="filters_next_change",
-        name="Filters Next Change",
+        key="filters_last_change",
+        translation_key="filters_last_change",
+        name="Filters Last Change",
         icon="mdi:filter",
-        json_value="filters_next_change",
+        json_value="filters_last_change",
     ),
     AtreaSensorEntityDescription(
         key="inspection_date",
@@ -214,7 +233,7 @@ class AAtreaDeviceSensor(
             return None
 
         # Handle date formatting for filters_last_change and inspection_date
-        if self.entity_description.json_value in ["filters_next_change", "inspection_date"]:
+        if self.entity_description.json_value in ["filters_last_change", "inspection_date"]:
             day = value.get("day")
             month = value.get("month")
             year = value.get("year")
