@@ -239,8 +239,8 @@ class AmotionAtrea:
         if diagram_response:
             # The server returns `ui_diagram_data` as a nested key in the response
             ui_diagram = diagram_response.get("ui_diagram_data", {})
-            self.status['bypass_estim'] = ui_diagram.get("bypass_estim", None)
-            self.status['preheater_factor'] = ui_diagram.get("preheater_factor", None)
+            self.status['bypass_estim'] = ui_diagram.get("bypass_estim", 0)
+            self.status['preheater_factor'] = ui_diagram.get("preheater_factor", 0)
 
     async def async_get_maintenance_data(self):
         """ Get maintenance information like filter change dates and motor hours """
@@ -344,8 +344,8 @@ class AmotionAtrea:
             'motor2_hours': 0,
             'uv_lamp_hours': None,
             'last_maintenance_update': datetime.min,
-            'bypass_estim': None,
-            'preheater_factor': None,
+            'bypass_estim': 0,
+            'preheater_factor': 0,
         }
 
         self.model = None
