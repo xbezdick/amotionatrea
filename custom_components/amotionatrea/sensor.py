@@ -234,10 +234,10 @@ class AAtreaDeviceSensor(
             return None
 
         # Handle date formatting for filters_last_change and inspection_date
-        if self.entity_description.json_value in ["filters_last_change", "inspection_date"]:
-            day = value.get("day")
-            month = value.get("month")
-            year = value.get("year")
+        if self.entity_description.json_value in ['filters_last_change', 'inspection_date']:
+            day = value.get('day')
+            month = value.get('month')
+            year = value.get('year')
             if day is not None and month is not None and year is not None:
                 return f"{year}-{month:02d}-{day:02d}"
             return None

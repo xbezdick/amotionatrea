@@ -106,33 +106,33 @@ class AmotionAtrea:
             await self._update_status(message)
 
     async def _update_status(self, message):
-        self.status['current_temperature'] = message["args"]["unit"]["temp_sup"]
-        self.status['setpoint'] = message["args"]["requests"]["temp_request"]
-        self.status['temp_oda'] = message["args"]["unit"]['temp_oda']
-        self.status['temp_ida'] = message["args"]["unit"]['temp_ida']
-        self.status['temp_eha'] = message["args"]["unit"]['temp_eha']
-        self.status['temp_eta'] = message["args"]["unit"]['temp_eta']
-        self.status['temp_sup'] = message["args"]["unit"]['temp_sup']
-        self.status['season_current'] = message["args"]["unit"]['season_current']
+        self.status['current_temperature'] = message['args']['unit']['temp_sup']
+        self.status['setpoint'] = message['args']['requests']['temp_request']
+        self.status['temp_oda'] = message['args']['unit']['temp_oda']
+        self.status['temp_ida'] = message['args']['unit']['temp_ida']
+        self.status['temp_eha'] = message['args']['unit']['temp_eha']
+        self.status['temp_eta'] = message['args']['unit']['temp_eta']
+        self.status['temp_sup'] = message['args']['unit']['temp_sup']
+        self.status['season_current'] = message['args']['unit']['season_current']
         self.status['last_update'] = datetime.now()
 
         if self._max_flow:
             self.status['fan_mode'] = round(
-                float(message["args"]["requests"]["flow_ventilation_req"]) /
+                float(message['args']['requests']['flow_ventilation_req']) /
                 (float(self._max_flow) / 100), -1
             )
             self.status['fan_eta_factor'] = round(
-                float(message["args"]["unit"]["flow_eta"]) /
+                float(message['args']['unit']['flow_eta']) /
                 (float(self._max_flow) / 100), -1
             )
             self.status['fan_sup_factor'] = round(
-                float(message["args"]["unit"]["flow_sup"]) /
+                float(message['args']['unit']['flow_sup']) /
                 (float(self._max_flow) / 100), -1
             )
         else:
-            self.status['fan_eta_factor'] = message["args"]["unit"]['fan_eta_factor']
-            self.status['fan_sup_factor'] = message["args"]["unit"]['fan_sup_factor']
-            self.status['fan_mode'] = message["args"]["requests"]["fan_power_req"]
+            self.status['fan_eta_factor'] = message['args']['unit']['fan_eta_factor']
+            self.status['fan_sup_factor'] = message['args']['unit']['fan_sup_factor']
+            self.status['fan_mode'] = message['args']['requests']['fan_power_req']
 
     async def update(self, message_id=None):
         LOGGER.debug("update %s", message_id)
@@ -205,8 +205,10 @@ class AmotionAtrea:
         response_id = await self.send('{"endpoint": "version", "args": null}')
         version_data = await self.update(response_id)
         if version_data:
-            controller_info = version_data.get('CONTROLLER', {})
-            self.sw_version = controller_info.get('version', 'Unknown')
+            if 'GATEWAY' in version_data and 'version' in version_data['GATEWAY']:
+                self.sw_version = version_data['GATEWAY']['version']
+            else:
+                self.sw_version = 'unknown'
 
     async def login(self):
         LOGGER.debug("Sending login to get token")
@@ -224,13 +226,11 @@ class AmotionAtrea:
         await self.async_get_version()
 
     async def ui_scheme(self):
-        response_id = await self.send('{"endpoint": "ui_info_scheme", "args": null}')
-        message = await self.update(response_id)
         response_id = await self.send('{"endpoint": "ui_control_scheme", "args": null}')
-        self.control_scheme = await self.update(response_id)
-        if "flow_ventilation_req" in message["requests"]:
-            self._max_flow = self.control_scheme["types"]["flow_ventilation_req"]["max"]
-            self._min_flow = self.control_scheme["types"]["flow_ventilation_req"]["min"]
+        control_scheme = await self.update(response_id)
+        if 'flow_ventilation_req' in control_scheme['requests']:
+            self._max_flow = control_scheme['types']['flow_ventilation_req']['max']
+            self._min_flow = control_scheme['types']['flow_ventilation_req']['min']
 
     async def async_get_diagram_data(self):
         """Fetch diagram data including bypass_estim from the server."""
@@ -238,9 +238,9 @@ class AmotionAtrea:
         diagram_response = await self.update(response_id)
         if diagram_response:
             # The server returns `ui_diagram_data` as a nested key in the response
-            ui_diagram = diagram_response.get("ui_diagram_data", {})
-            self.status['bypass_estim'] = ui_diagram.get("bypass_estim", 0)
-            self.status['preheater_factor'] = ui_diagram.get("preheater_factor", 0)
+            ui_diagram = diagram_response.get('ui_diagram_data', {})
+            self.status['bypass_estim'] = ui_diagram.get('bypass_estim', 0)
+            self.status['preheater_factor'] = ui_diagram.get('preheater_factor', 0)
 
     async def async_get_maintenance_data(self):
         """ Get maintenance information like filter change dates and motor hours """
@@ -317,7 +317,6 @@ class AmotionAtrea:
         self._websocket = AtreaWebsocket(url)
         self._max_flow = None
         self._min_flow = None
-        self.control_scheme = {}
         self.has_uv_lamp = False
 
         self.status = {
