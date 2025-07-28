@@ -82,6 +82,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         user_input = user_input or {}
         self.url = user_input.get(CONF_URL, self.url)
+        self.name = user_input.get(CONF_NAME, self.url)
         self.username = user_input.get(CONF_USERNAME, self.username)
         self.password = user_input.get(CONF_PASSWORD, self.password)
 
