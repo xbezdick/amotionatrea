@@ -230,7 +230,7 @@ class AAtreaDeviceSensor(
     def native_value(self) -> float | str | None:
         """Return the state of the sensor."""
         value = self._atrea.status.get(self.entity_description.json_value)
-        if not value:
+        if value is None:
             return None
 
         # Handle date formatting for filters_last_change and inspection_date
