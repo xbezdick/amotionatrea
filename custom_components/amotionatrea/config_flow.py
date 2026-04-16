@@ -10,6 +10,7 @@ from homeassistant.const import (
     CONF_URL,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_HOST,
 )
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
@@ -70,7 +71,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             hass.config_entries.async_update_entry(config_entry, data=new_data, version=2)
             return True
-        return False
+        # Already at latest version or unknown version - return True to indicate success
+        return True
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -185,4 +187,5 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_NAME: user_input.get(CONF_NAME, self.name),
             },
         )
+
 
