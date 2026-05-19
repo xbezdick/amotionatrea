@@ -225,3 +225,10 @@ class TestAsyncSetupEntryClimate:
         entities = async_add_entities.call_args[0][0]
         assert len(entities) == 1
         assert isinstance(entities[0], AAtreaDevice)
+
+"""Extended tests for Amotion Atrea climate module."""
+
+import pytest
+from homeassistant.components.climate import HVACMode
+from homeassistant.components.climate.const import HVACAction
+from custom_components.amotionatrea.climate import AAtreaDevice

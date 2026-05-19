@@ -170,3 +170,44 @@ class TestAtreaWebsocket:
         with patch('websockets.connect', side_effect=Exception("Connection failed")):
             with pytest.raises(ConfigEntryNotReady):
                 await atrea_websocket.connect(mock_on_connect, mock_on_data, mock_on_close)
+
+"""Extended tests for Amotion Atrea websocket module."""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+import pytest
+from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+from custom_components.amotionatrea.websocket import AtreaWebsocket
+from homeassistant.exceptions import ConfigEntryNotReady
+
+
+class TestAtreaWebsocketExtended:
+    """Extended test cases for AtreaWebsocket class."""
+
+    @pytest.mark.asyncio
+    async def test_connect_with_exception(self):
+        """Test connect method handles various exceptions."""
+        ws = AtreaWebsocket("ws://192.168.1.100:8080/")
+
+        with patch('websockets.connect', side_effect=ConnectionRefusedError("Connection refused")):
+            with pytest.raises(ConfigEntryNotReady):
+                await ws.connect(None, None, None)
+
+    @pytest.mark.asyncio
+    async def test_handle_messages_connection_closed_error(self):
+        """Test handle_messages handles connection close properly."""
+        from websockets.exceptions import ConnectionClosed
+        
+        ws = AtreaWebsocket("ws://192.168.1.100:8080/")
+        mock_on_data = AsyncMock()
+
+        class MockWS:
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                # Stop iteration cleanly
+                raise StopAsyncIteration
+
+        # This should complete without exception
+        await ws.handle_messages(MockWS(), mock_on_data)

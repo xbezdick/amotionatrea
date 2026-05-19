@@ -230,3 +230,109 @@ class TestAsyncSetupEntrySensor:
         # Verify no UV lamp sensor
         for entity in entities:
             assert entity.entity_description.key != "uv_lamp_hours"
+
+"""Extended tests for Amotion Atrea sensor module."""
+
+import pytest
+from custom_components.amotionatrea.sensor import AAtreaDeviceSensor, AtreaSensorEntityDescription
+
+
+class TestSensorExtended:
+    """Extended test cases for sensor module."""
+
+    @pytest.mark.asyncio
+    async def test_native_value_partial_date(self):
+        """Test native_value with partial date data."""
+        mock_coordinator = type('MockCoordinator', (), {'aatrea': type('MockAtrea', (), {
+            'name': "TestDevice",
+            'brand': "Atrea",
+            'model': "DUPLEX 380",
+            'sw_version': "v1.0",
+            'serial': "ABC123",
+            # Only day and month, missing year
+            'status': {'filters_last_change': {'day': 15, 'month': 6}}
+        })()})()
+
+        description = AtreaSensorEntityDescription(
+            key="filters_last_change",
+            translation_key="filters_last_change",
+            json_value="filters_last_change",
+        )
+
+        sensor = AAtreaDeviceSensor(mock_coordinator, description, "sensor_name")
+
+        # Should return None when date is incomplete
+        assert sensor.native_value is None
+
+    @pytest.mark.asyncio
+    async def test_native_value_complete_date(self):
+        """Test native_value with complete date data."""
+        mock_coordinator = type('MockCoordinator', (), {'aatrea': type('MockAtrea', (), {
+            'name': "TestDevice",
+            'brand': "Atrea",
+            'model': "DUPLEX 380",
+            'sw_version': "v1.0",
+            'serial': "ABC123",
+            'status': {'filters_last_change': {'day': 15, 'month': 6, 'year': 2024}}
+        })()})()
+
+        description = AtreaSensorEntityDescription(
+            key="filters_last_change",
+            translation_key="filters_last_change",
+            json_value="filters_last_change",
+        )
+
+        sensor = AAtreaDeviceSensor(mock_coordinator, description, "sensor_name")
+
+        assert sensor.native_value == "2024-06-15"
+
+    @pytest.mark.asyncio
+    async def test_native_value_numeric_zero(self):
+        """Test native_value with zero value."""
+        mock_coordinator = type('MockCoordinator', (), {'aatrea': type('MockAtrea', (), {
+            'name': "TestDevice",
+            'brand': "Atrea",
+            'model': "DUPLEX 380",
+            'sw_version': "v1.0",
+            'serial': "ABC123",
+            'status': {'bypass_estim': 0}
+        })()})()
+
+        description = AtreaSensorEntityDescription(
+            key="bypass_estim",
+            translation_key="bypass_estim",
+            json_value="bypass_estim",
+        )
+
+        sensor = AAtreaDeviceSensor(mock_coordinator, description, "sensor_name")
+
+        # Zero should be returned, not None
+        assert sensor.native_value == 0
+
+    @pytest.mark.asyncio
+    async def test_async_update(self):
+        """Test async_update method."""
+        from unittest.mock import AsyncMock
+
+        mock_coordinator = type('MockCoordinator', (), {
+            'aatrea': type('MockAtrea', (), {
+                'name': "TestDevice",
+                'brand': "Atrea",
+                'model': "DUPLEX 380",
+                'sw_version': "v1.0",
+                'serial': "ABC123",
+            })(),
+            'async_request_refresh': AsyncMock()
+        })()
+
+        description = AtreaSensorEntityDescription(
+            key="outside_temperature",
+            translation_key="outside_temperature",
+            json_value="temp_oda",
+        )
+
+        sensor = AAtreaDeviceSensor(mock_coordinator, description, "sensor_name")
+
+        await sensor.async_update()
+
+        mock_coordinator.async_request_refresh.assert_called_once()
