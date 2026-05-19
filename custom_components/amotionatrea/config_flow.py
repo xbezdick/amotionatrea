@@ -1,6 +1,9 @@
+"""Configuration flow for Amotion Atrea integration."""
+
 from __future__ import annotations
 
 import logging
+from typing import Any
 from urllib.parse import urlparse
 import asyncio
 
@@ -10,7 +13,6 @@ from homeassistant.const import (
     CONF_URL,
     CONF_USERNAME,
     CONF_PASSWORD,
-    CONF_HOST,
 )
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
@@ -27,6 +29,23 @@ from .const import DOMAIN
 
 LOGGER = logging.getLogger(__name__)
 
+
+def normalize_url(url: str) -> str:
+    """Normalize URL to ensure it ends with a slash.
+
+    Args:
+        url: The URL to normalize.
+
+    Returns:
+        The normalized URL.
+    """
+    if not url:
+        raise ValueError("URL is required")
+    if not (url.startswith("ws://") or url.startswith("wss://")):
+        raise ValueError("URL must start with ws:// or wss://")
+    return url if url.endswith("/") else url + "/"
+
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(
@@ -37,6 +56,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PASSWORD): str,
     }
 )
+
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Amotion Atrea integration."""
@@ -56,7 +76,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         LOGGER.info("Migrating configuration from version %s.%s", config_entry.version, config_entry.minor_version)
 
         if config_entry.version == 1:
-            host = config_entry.data.get(CONF_HOST)
+            host = config_entry.data.get(CONF_URL)
             if not host or not (host.startswith("ws://") or host.startswith("wss://")):
                 if host and not host.startswith("ws://"):
                     host = "ws://" + host
@@ -78,10 +98,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step of the config flow."""
-        # Prevent multiple entries if this is a singleton integration
-        # if self._async_current_entries():
-        #     return self.async_abort(reason="single_instance_allowed")
-
         user_input = user_input or {}
         self.url = user_input.get(CONF_URL, self.url)
         self.name = user_input.get(CONF_NAME, self.url)
@@ -97,8 +113,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["url"] = "invalid_url_format"
 
         # Parse to extract host and port for connectivity check
-        parsed_url = urlparse(self.url)
-        host = parsed_url.hostname
+        if not errors:
+            try:
+                self.url = normalize_url(self.url)
+            except ValueError as e:
+                errors["url"] = str(e)
+
+        parsed_url = urlparse(self.url) if self.url else None
+        host = parsed_url.hostname if parsed_url else None
 
         if host is None:
             errors["url"] = "invalid_url_format"
@@ -122,16 +144,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     reader, writer = await asyncio.open_connection(host, port)
                     writer.close()
                     await writer.wait_closed()
-            except Exception as e:
+            except Exception:
                 LOGGER.debug("Could not connect to %s:%s", host, port, exc_info=True)
                 errors["base"] = "cannot_connect"
 
-
         # Now validate login
         if not errors:
-            # Ensure URL ends with a slash
-            if not self.url.endswith("/"):
-                self.url += "/"
             try:
                 self.atrea = AmotionAtrea(
                     hass=self.hass,
@@ -187,5 +205,3 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_NAME: user_input.get(CONF_NAME, self.name),
             },
         )
-
-

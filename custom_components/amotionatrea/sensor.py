@@ -1,24 +1,17 @@
 """Support for Amotion Atrea sensors."""
 
 import logging
-import json
-
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_NAME,
-    UnitOfEnergy,
     UnitOfTemperature,
     PERCENTAGE,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import async_generate_entity_id
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
 from . import AmotionAtreaCoordinator
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -27,7 +20,6 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
-    ENTITY_ID_FORMAT,
 )
 
 from .const import DOMAIN
@@ -37,6 +29,8 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class AtreaSensorEntityDescription(SensorEntityDescription):
+    """Description for Amotion Atrea sensors."""
+
     json_value: str | None = None
 
 
@@ -189,6 +183,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: Callable,
 ):
+    """Set up the sensor entities."""
     sensor_name = entry.data.get(CONF_NAME)
     coordinator: AmotionAtreaCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[AAtreaDeviceSensor] = []
@@ -202,21 +197,24 @@ async def async_setup_entry(
 class AAtreaDeviceSensor(
     CoordinatorEntity[AmotionAtreaCoordinator], SensorEntity
 ):
+    """Sensor entity for Amotion Atrea devices."""
 
     entity_description: AtreaSensorEntityDescription
     _attr_has_entity_name = True
 
     def __init__(
         self,
-        coordinator,
+        coordinator: AmotionAtreaCoordinator,
         description: AtreaSensorEntityDescription,
-        sensor_name
+        sensor_name: str
     ) -> None:
+        """Initialize the sensor entity."""
         super().__init__(coordinator)
         self._atrea = coordinator.aatrea
         self.entity_description = description
         self._attr_name = description.name
-        self._attr_unique_id = "%s-%s" % (sensor_name, f"amotionatrea_{description.key}")
+        self._attr_unique_id = f"{sensor_name}-amotionatrea_{description.key}"
+        # Cache device info for better performance
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._atrea.name)},
             manufacturer=self._atrea.brand,
@@ -235,6 +233,8 @@ class AAtreaDeviceSensor(
 
         # Handle date formatting for filters_last_change and inspection_date
         if self.entity_description.json_value in ['filters_last_change', 'inspection_date']:
+            if not isinstance(value, dict):
+                return None
             day = value.get('day')
             month = value.get('month')
             year = value.get('year')
@@ -245,7 +245,6 @@ class AAtreaDeviceSensor(
         # Return numerical values as they are
         return value
 
-    async def async_update(self):
+    async def async_update(self) -> None:
         """Fetch new state data for the sensor."""
         await self.coordinator.async_request_refresh()
-

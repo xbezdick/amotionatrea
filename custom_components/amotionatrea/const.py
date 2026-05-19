@@ -1,8 +1,8 @@
 """Constants for the Amotion Atrea integration."""
 
 from homeassistant.components.climate import (
-    HVACMode,
     ClimateEntityFeature,
+    HVACMode,
 )
 
 # Domain and basic configuration
@@ -20,6 +20,9 @@ SUPPORT_FLAGS: ClimateEntityFeature = (
     ClimateEntityFeature.FAN_MODE | ClimateEntityFeature.TARGET_TEMPERATURE
 )
 
+# Fan mode rounding step (fan modes are in steps of 5)
+FAN_MODE_ROUNDING_STEP: int = 5
+
 # Fan modes (0-100 in steps of 5)
 DEFAULT_FAN_MODE_LIST: list[str] = [
     "0", "5", "10", "15", "20", "25", "30",
@@ -30,21 +33,6 @@ DEFAULT_FAN_MODE_LIST: list[str] = [
 
 # HVAC modes supported by the device
 HVAC_MODES: list[HVACMode] = [
-    HVACMode.OFF,
-    HVACMode.AUTO,
-    HVACMode.HEAT_COOL,
-]
-
-SUPPORT_FLAGS = (
-    ClimateEntityFeature.FAN_MODE
-    | ClimateEntityFeature.TARGET_TEMPERATURE
-)
-
-DEFAULT_FAN_MODE_LIST = ["0","5","10","15","20","25","30",
-                         "35","40","45","50","55","60",
-                         "65","70","75","80","85","90",
-                         "95","100"]
-HVAC_MODES = [
     HVACMode.OFF,
     HVACMode.AUTO,
     HVACMode.HEAT_COOL,

@@ -43,11 +43,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.data[CONF_PASSWORD]
         )
     except Exception as e:
-        raise ConfigEntryNotReady from e
+        raise ConfigEntryNotReady(f"Failed to initialize Atrea: {e}") from e
 
     coordinator = AmotionAtreaCoordinator(hass, atrea)
     await coordinator.async_config_entry_first_refresh()
-    LOGGER.debug("thread is on")
+    LOGGER.debug("Setup completed successfully")
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
@@ -108,13 +108,23 @@ class AmotionAtrea:
         """
         LOGGER.debug("receive message: %s", message)
 
+        # Validate message structure
+        if not isinstance(message, dict):
+            LOGGER.warning("Received non-dict message: %s", message)
+            return
+
         # Handle response messages with ID
         if 'id' in message and message['id'] is not None:
+            # Check for required fields before storing
+            if 'response' not in message:
+                return
+
             if message.get('code') == 'UNAUTHORIZED':
                 LOGGER.warning("Device returned UNAUTHORIZED response")
                 raise ConfigEntryNotReady("Authentication failed with device")
+
             self._messages[message['id']] = message.get('response')
-            LOGGER.debug("Stored messages: %s", self._messages)
+            self._messages[message['id']] = message.get('response')
 
         # Handle event messages
         elif (
@@ -266,21 +276,33 @@ class AmotionAtrea:
 
     async def login(self) -> None:
         """Authenticate with the device and initialize connection."""
-        LOGGER.debug("Sending login to get token")
-        msg_id = await self.send(
-            f'{{"endpoint":"login","args":{{"username":"{self._username}","password":"{self._password}"}}}}'
-        )
-        token = await self.update(message_id=msg_id)
-        LOGGER.debug("Token received: %s", token)
+        LOGGER.info("Starting login process")
+        try:
+            msg_id = await self.send(
+                f'{{"endpoint":"login","args":{{"username":"{self._username}","password":"{self._password}"}}}}'
+            )
+            token = await self.update(message_id=msg_id)
+            LOGGER.debug("Token received: %s", token)
 
-        # Second login with token
-        await self.send(f'{{"endpoint":"login","args":{{"token":"{token}"}}}}')
+            if token is None:
+                raise ConfigEntryNotReady("Login timeout - no token received")
 
-        await self.ui_scheme()
-        self.logged_in = True
+            # Second login with token
+            await self.send(f'{{"endpoint":"login","args":{{"token":"{token}"}}}}')
 
-        await self.async_get_discovery()
-        await self.async_get_version()
+            await self.ui_scheme()
+            self.logged_in = True
+
+            await self.async_get_discovery()
+            await self.async_get_version()
+
+            LOGGER.info("Login successful")
+        except ConfigEntryNotReady:
+            LOGGER.error("Login failed: %s")
+            raise
+        except Exception as e:
+            LOGGER.exception("Unexpected error during login")
+            raise ConfigEntryNotReady(f"Login error: {e}") from e
 
     async def ui_scheme(self) -> None:
         """Fetch UI control scheme to determine fan mode capabilities."""
@@ -397,7 +419,6 @@ class AmotionAtrea:
         self._url: str = url
         self._username: str = username
         self._password: str = password
-
         self._available: bool = True
         self.logged_in: bool = False
         self._msg_id: int = 0
