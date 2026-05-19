@@ -75,7 +75,7 @@ class TestAtreaSensorEntityDescription:
             name="Test Sensor",
             json_value="test_value"
         )
-        
+
         assert desc.key == "test_sensor"
         assert desc.translation_key == "test"
         assert desc.name == "Test Sensor"
@@ -104,7 +104,7 @@ class TestAAtreaDeviceSensor:
         """Test sensor initialization."""
         description = ATREA_SENSORS[0]
         sensor = AAtreaDeviceSensor(mock_coordinator, description, "Test Atrea")
-        
+
         assert sensor.name == description.name
         assert sensor._attr_unique_id == f"Test Atrea-amotionatrea_{description.key}"
 
@@ -116,21 +116,21 @@ class TestAAtreaDeviceSensor:
             json_value="temp_oda"
         )
         sensor = AAtreaDeviceSensor(mock_coordinator, description, "Test Atrea")
-        
+
         assert sensor.native_value == 15.0
 
     def test_native_value_none(self, mock_coordinator):
         """Test native_value when value is None."""
         # Set a value to None in status
         mock_coordinator.aatrea.status['test_null'] = None
-        
+
         description = AtreaSensorEntityDescription(
             key="test_null",
             name="Test Null",
             json_value="test_null"
         )
         sensor = AAtreaDeviceSensor(mock_coordinator, description, "Test Atrea")
-        
+
         assert sensor.native_value is None
 
     def test_native_value_date_formatting(self, mock_coordinator):
@@ -141,7 +141,7 @@ class TestAAtreaDeviceSensor:
             json_value="filters_last_change"
         )
         sensor = AAtreaDeviceSensor(mock_coordinator, description, "Test Atrea")
-        
+
         assert sensor.native_value == "2023-06-15"
 
     def test_native_value_inspection_date(self, mock_coordinator):
@@ -152,7 +152,7 @@ class TestAAtreaDeviceSensor:
             json_value="inspection_date"
         )
         sensor = AAtreaDeviceSensor(mock_coordinator, description, "Test Atrea")
-        
+
         assert sensor.native_value == "2023-12-01"
 
     def test_native_value_motor_hours(self, mock_coordinator):
@@ -163,16 +163,16 @@ class TestAAtreaDeviceSensor:
             json_value="motor1_hours"
         )
         sensor = AAtreaDeviceSensor(mock_coordinator, description, "Test Atrea")
-        
+
         assert sensor.native_value == 7200
 
     def test_device_info(self, mock_coordinator):
         """Test device_info property."""
         description = ATREA_SENSORS[0]
         sensor = AAtreaDeviceSensor(mock_coordinator, description, "Test Atrea")
-        
+
         device_info = sensor.device_info
-        
+
         assert device_info['identifiers'] == {(DOMAIN, "Test Atrea")}
         assert device_info['manufacturer'] == "Atrea"
         assert device_info['model'] == "DUPLEX 380 ECV5.aM-CL"
@@ -181,13 +181,13 @@ class TestAAtreaDeviceSensor:
     def test_uv_lamp_sensor_skipped_when_no_uv_lamp(self, mock_coordinator):
         """Test that UV lamp sensor is skipped when no UV lamp."""
         mock_coordinator.aatrea.has_uv_lamp = False
-        
+
         uv_sensor_desc = None
         for desc in ATREA_SENSORS:
             if desc.key == "uv_lamp_hours":
                 uv_sensor_desc = desc
                 break
-        
+
         assert uv_sensor_desc is not None
         # When has_uv_lamp is False, the sensor should not be created
         # This is tested in async_setup_entry
@@ -201,16 +201,16 @@ class TestAsyncSetupEntrySensor:
         """Test sensor setup entry creates all sensors."""
         # Setup hass data
         mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: mock_coordinator}
-        
+
         # Mock async_add_entities
         async_add_entities = MagicMock()
-        
+
         await async_setup_entry(mock_hass, mock_config_entry, async_add_entities)
-        
+
         # Verify entities were added
         assert async_add_entities.called
         entities = async_add_entities.call_args[0][0]
-        
+
         # Should create all sensors except UV lamp if not present
         # Count expected sensors
         expected_count = len([s for s in ATREA_SENSORS if not (s.key == "uv_lamp_hours" and not mock_coordinator.aatrea.has_uv_lamp)])
@@ -220,13 +220,13 @@ class TestAsyncSetupEntrySensor:
         """Test that UV lamp sensor is skipped when not present."""
         mock_coordinator.aatrea.has_uv_lamp = False
         mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: mock_coordinator}
-        
+
         async_add_entities = MagicMock()
-        
+
         await async_setup_entry(mock_hass, mock_config_entry, async_add_entities)
-        
+
         entities = async_add_entities.call_args[0][0]
-        
+
         # Verify no UV lamp sensor
         for entity in entities:
             assert entity.entity_description.key != "uv_lamp_hours"

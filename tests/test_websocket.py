@@ -14,10 +14,10 @@ class AsyncIterator:
     def __init__(self, messages):
         self.messages = messages
         self.index = 0
-    
+
     def __aiter__(self):
         return self
-    
+
     async def __anext__(self):
         if self.index >= len(self.messages):
             # Don't raise ConnectionClosed, just stop iteration
@@ -53,11 +53,11 @@ class TestAtreaWebsocket:
     async def test_send_when_not_connected(self, atrea_websocket):
         """Test sending message when not connected."""
         message = json.dumps({"endpoint": "test", "args": None})
-        
+
         # Mock asyncio.sleep to avoid waiting
         with patch('asyncio.sleep', new_callable=AsyncMock):
             await atrea_websocket.send(message)
-        
+
         # Should attempt to send but fail gracefully
         assert atrea_websocket._websocket is None
 
@@ -65,30 +65,30 @@ class TestAtreaWebsocket:
     async def test_send_success(self, atrea_websocket):
         """Test successful message sending."""
         message = json.dumps({"endpoint": "test", "args": None})
-        
+
         # Create a mock websocket
         mock_ws = AsyncMock()
         mock_ws.send = AsyncMock()
         atrea_websocket._websocket = mock_ws
-        
+
         await atrea_websocket.send(message)
-        
+
         mock_ws.send.assert_called_once_with(message)
 
     @pytest.mark.asyncio
     async def test_send_with_connection_closed(self, atrea_websocket):
         """Test sending message when connection is closed."""
         message = json.dumps({"endpoint": "test", "args": None})
-        
+
         # Create a mock websocket that raises ConnectionClosed
         mock_ws = AsyncMock()
         mock_ws.send = AsyncMock(side_effect=ConnectionClosed(None, None))
         atrea_websocket._websocket = mock_ws
-        
+
         # Mock asyncio.sleep to avoid waiting
         with patch('asyncio.sleep', new_callable=AsyncMock):
             await atrea_websocket.send(message)
-        
+
         # Should attempt multiple times then close
         assert mock_ws.close.called
 
@@ -96,26 +96,26 @@ class TestAtreaWebsocket:
     async def test_handle_messages_with_json(self, atrea_websocket):
         """Test handling JSON messages."""
         mock_on_data = AsyncMock()
-        
+
         # Create a mock websocket with proper async iterator
         mock_ws = MagicMock(spec=['__aiter__'])
         mock_ws.__aiter__ = lambda self: AsyncIterator([json.dumps({"test": "data"})])
-        
+
         await atrea_websocket.handle_messages(mock_ws, mock_on_data)
-        
+
         mock_on_data.assert_called_once_with({"test": "data"})
 
     @pytest.mark.asyncio
     async def test_handle_messages_with_bytes(self, atrea_websocket):
         """Test handling bytes messages."""
         mock_on_data = AsyncMock()
-        
+
         # Create a mock websocket with proper async iterator
         mock_ws = MagicMock(spec=['__aiter__'])
         mock_ws.__aiter__ = lambda self: AsyncIterator([b'{"test": "bytes_data"}'])
-        
+
         await atrea_websocket.handle_messages(mock_ws, mock_on_data)
-        
+
         mock_on_data.assert_called_once_with({"test": "bytes_data"})
 
     @pytest.mark.asyncio
@@ -123,13 +123,13 @@ class TestAtreaWebsocket:
     async def test_handle_messages_unicode_decode_error(self, atrea_websocket, caplog):
         """Test handling unicode decode errors."""
         mock_on_data = AsyncMock()
-        
+
         # Create a mock websocket with invalid UTF-8
         mock_ws = MagicMock(spec=['__aiter__'])
         mock_ws.__aiter__ = lambda self: AsyncIterator([b'\xff\xfe'])
-        
+
         await atrea_websocket.handle_messages(mock_ws, mock_on_data)
-        
+
         assert "Decoding error" in caplog.text
 
     @pytest.mark.asyncio
@@ -139,7 +139,7 @@ class TestAtreaWebsocket:
         mock_on_connect = AsyncMock()
         mock_on_data = AsyncMock()
         mock_on_close = AsyncMock()
-        
+
         # Create a mock websocket that immediately stops
         class MockWS:
             async def __aenter__(self):
@@ -150,13 +150,13 @@ class TestAtreaWebsocket:
                 pass
             def __aiter__(self):
                 return AsyncIterator([])
-        
+
         with patch('websockets.connect', return_value=MockWS()):
             try:
                 await atrea_websocket.connect(mock_on_connect, mock_on_data, mock_on_close)
             except Exception:
                 pass  # Expected to exit the loop
-            
+
             # on_connect should have been called
             assert mock_on_connect.called
 
@@ -166,7 +166,7 @@ class TestAtreaWebsocket:
         mock_on_connect = AsyncMock()
         mock_on_data = AsyncMock()
         mock_on_close = AsyncMock()
-        
+
         with patch('websockets.connect', side_effect=Exception("Connection failed")):
             with pytest.raises(ConfigEntryNotReady):
                 await atrea_websocket.connect(mock_on_connect, mock_on_data, mock_on_close)
@@ -197,7 +197,7 @@ class TestAtreaWebsocketExtended:
     async def test_handle_messages_connection_closed_error(self):
         """Test handle_messages handles connection close properly."""
         from websockets.exceptions import ConnectionClosed
-        
+
         ws = AtreaWebsocket("ws://192.168.1.100:8080/")
         mock_on_data = AsyncMock()
 

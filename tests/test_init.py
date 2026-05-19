@@ -52,7 +52,7 @@ class TestAmotionAtrea:
             "test_user",
             "test_password"
         )
-        
+
         assert atrea._url == "ws://192.168.1.100:8080/"
         assert atrea._username == "test_user"
         assert atrea._password == "test_password"
@@ -74,23 +74,23 @@ class TestAmotionAtrea:
             mock_ws_instance = AsyncMock()
             mock_ws_instance.send = AsyncMock()
             MockWS.return_value = mock_ws_instance
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             # Mock the websocket connection
             atrea._websocket = mock_ws_instance
-            
+
             # Call send
             msg_id = await atrea.send('{"endpoint": "test", "args": null}')
-            
+
             assert msg_id == 1
             assert atrea._msg_id == 1
-            
+
             # Send another message
             msg_id2 = await atrea.send('{"endpoint": "test2", "args": null}')
             assert msg_id2 == 2
@@ -103,16 +103,16 @@ class TestAmotionAtrea:
             mock_ws_instance = AsyncMock()
             mock_ws_instance.send = AsyncMock(side_effect=TimeoutError())
             MockWS.return_value = mock_ws_instance
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             atrea._websocket = mock_ws_instance
-            
+
             with pytest.raises(ConfigEntryNotReady):
                 await atrea.send('{"endpoint": "test", "args": null}')
 
@@ -121,19 +121,19 @@ class TestAmotionAtrea:
         """Test update method returns message."""
         with patch('custom_components.amotionatrea.AtreaWebsocket') as MockWS:
             MockWS.return_value = AsyncMock()
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             # Add a message to _messages
             atrea._messages[5] = {"test": "data"}
-            
+
             result = await atrea.update(5)
-            
+
             assert result == {"test": "data"}
             assert 5 not in atrea._messages
 
@@ -142,18 +142,18 @@ class TestAmotionAtrea:
         """Test update method times out."""
         with patch('custom_components.amotionatrea.AtreaWebsocket') as MockWS:
             MockWS.return_value = AsyncMock()
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             # Mock asyncio.sleep to speed up test
             with patch('asyncio.sleep', new_callable=AsyncMock):
                 result = await atrea.update(999)
-            
+
             assert result is None
 
     @pytest.mark.asyncio
@@ -161,23 +161,23 @@ class TestAmotionAtrea:
         """Test receive method stores message."""
         with patch('custom_components.amotionatrea.AtreaWebsocket') as MockWS:
             MockWS.return_value = AsyncMock()
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             message = {
                 'id': 5,
                 'code': 'OK',
                 'response': {'test': 'data'},
                 'type': 'response'
             }
-            
+
             await atrea.receive(message)
-            
+
             assert 5 in atrea._messages
             assert atrea._messages[5] == {'test': 'data'}
 
@@ -186,21 +186,21 @@ class TestAmotionAtrea:
         """Test receive method raises ConfigEntryNotReady on UNAUTHORIZED."""
         with patch('custom_components.amotionatrea.AtreaWebsocket') as MockWS:
             MockWS.return_value = AsyncMock()
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             message = {
                 'id': 5,
                 'code': 'UNAUTHORIZED',
                 'response': None,
                 'type': 'response'
             }
-            
+
             with pytest.raises(ConfigEntryNotReady):
                 await atrea.receive(message)
 
@@ -209,17 +209,17 @@ class TestAmotionAtrea:
         """Test receive method updates status on ui_info event."""
         with patch('custom_components.amotionatrea.AtreaWebsocket') as MockWS:
             MockWS.return_value = AsyncMock()
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             # Set logged_in to True
             atrea.logged_in = True
-            
+
             message = {
                 'type': 'event',
                 'event': 'ui_info',
@@ -240,9 +240,9 @@ class TestAmotionAtrea:
                     }
                 }
             }
-            
+
             await atrea.receive(message)
-            
+
             assert atrea.status['current_temperature'] == 22.5
             assert atrea.status['setpoint'] == 21.0
             assert atrea.status['season_current'] == 'HEATING'
@@ -254,21 +254,21 @@ class TestAmotionAtrea:
             mock_ws_instance = AsyncMock()
             mock_ws_instance.send = AsyncMock()
             MockWS.return_value = mock_ws_instance
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             atrea._websocket = mock_ws_instance
             atrea.logged_in = True
-            
+
             # Mock update to return immediately
             with patch.object(atrea, 'update', new_callable=AsyncMock, return_value=None):
                 await atrea.set_temperature(22.0)
-            
+
             # Verify send was called with correct message
             assert mock_ws_instance.send.called
 
@@ -279,47 +279,47 @@ class TestAmotionAtrea:
             mock_ws_instance = AsyncMock()
             mock_ws_instance.send = AsyncMock()
             MockWS.return_value = mock_ws_instance
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             atrea._websocket = mock_ws_instance
             atrea._max_flow = 100
             atrea._min_flow = 10
             atrea.logged_in = True
-            
+
             with patch.object(atrea, 'update', new_callable=AsyncMock, return_value=None):
                 await atrea.set_fan_mode(50)
-            
+
             assert mock_ws_instance.send.called
 
     @pytest.mark.asyncio
     async def test_set_hvac_mode_heat_cool(self, mock_hass):
         """Test set_hvac_mode with HEAT_COOL."""
         from homeassistant.components.climate import HVACMode
-        
+
         with patch('custom_components.amotionatrea.AtreaWebsocket') as MockWS:
             mock_ws_instance = AsyncMock()
             mock_ws_instance.send = AsyncMock()
             MockWS.return_value = mock_ws_instance
-            
+
             atrea = AmotionAtrea(
                 mock_hass,
                 "ws://192.168.1.100:8080/",
                 "test_user",
                 "test_password"
             )
-            
+
             atrea._websocket = mock_ws_instance
             atrea.logged_in = True
-            
+
             with patch.object(atrea, 'update', new_callable=AsyncMock, return_value=None):
                 await atrea.set_hvac_mode(HVACMode.HEAT_COOL)
-            
+
             assert mock_ws_instance.send.called
 
 
@@ -331,9 +331,9 @@ class TestAmotionAtreaCoordinator:
         """Test coordinator initialization."""
         # Create a mock atrea object instead of real instance
         mock_atrea = MagicMock()
-        
+
         coordinator = AmotionAtreaCoordinator(mock_hass, mock_atrea)
-        
+
         assert coordinator.aatrea == mock_atrea
         assert coordinator.update_interval == timedelta(seconds=30)
         assert coordinator.always_update is True
@@ -344,11 +344,11 @@ class TestAmotionAtreaCoordinator:
         # Create a mock atrea object instead of real instance
         mock_atrea = MagicMock()
         mock_atrea.fetch = AsyncMock(return_value={'data': 'test'})
-        
+
         coordinator = AmotionAtreaCoordinator(mock_hass, mock_atrea)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert result == {'data': 'test'}
 
     @pytest.mark.asyncio
@@ -357,9 +357,9 @@ class TestAmotionAtreaCoordinator:
         # Create a mock atrea object instead of real instance
         mock_atrea = MagicMock()
         mock_atrea.fetch = AsyncMock(side_effect=Exception("API error"))
-        
+
         coordinator = AmotionAtreaCoordinator(mock_hass, mock_atrea)
-        
+
         with pytest.raises(UpdateFailed):
             await coordinator._async_update_data()
 
@@ -372,16 +372,16 @@ class TestAsyncSetupEntry:
         with patch('custom_components.amotionatrea.AmotionAtrea') as MockAmotionAtrea:
             mock_atrea = MagicMock()
             MockAmotionAtrea.return_value = mock_atrea
-            
+
             with patch('custom_components.amotionatrea.AmotionAtreaCoordinator') as MockCoordinator:
                 mock_coordinator = MagicMock()
                 mock_coordinator.async_config_entry_first_refresh = AsyncMock()
                 MockCoordinator.return_value = mock_coordinator
-                
+
                 mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
-                
+
                 result = await async_setup_entry(mock_hass, mock_config_entry)
-                
+
                 assert result is True
                 assert DOMAIN in mock_hass.data
                 assert mock_config_entry.entry_id in mock_hass.data[DOMAIN]
@@ -401,9 +401,9 @@ class TestAsyncUnloadEntry:
     async def test_async_unload_entry(self, mock_hass, mock_config_entry):
         """Test unload entry."""
         mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
-        
+
         result = await async_unload_entry(mock_hass, mock_config_entry)
-        
+
         assert result is True
         mock_hass.config_entries.async_unload_platforms.assert_called_once()
 
