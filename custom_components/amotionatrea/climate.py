@@ -15,11 +15,7 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 
-from homeassistant.const import (
-    CONF_NAME,
-    UnitOfTemperature,
-    ATTR_TEMPERATURE
-)
+from homeassistant.const import CONF_NAME, UnitOfTemperature, ATTR_TEMPERATURE
 
 from . import AmotionAtreaCoordinator
 from .const import (
@@ -46,9 +42,7 @@ async def async_setup_entry(
     async_add_entities(entities, update_before_add=True)
 
 
-class AAtreaDevice(
-    CoordinatorEntity[AmotionAtreaCoordinator], ClimateEntity
-):
+class AAtreaDevice(CoordinatorEntity[AmotionAtreaCoordinator], ClimateEntity):
     """Climate entity for Amotion Atrea devices."""
 
     _attr_has_entity_name = True
@@ -82,7 +76,7 @@ class AAtreaDevice(
         Note:
             FIXME this should be returning based on UI control scheme
         """
-        match self._atrea.status.get('season_current'):
+        match self._atrea.status.get("season_current"):
             case "HEATING":
                 return HVACMode.HEAT
             case "NON_HEATING":
@@ -100,7 +94,7 @@ class AAtreaDevice(
     @property
     def hvac_action(self) -> HVACAction:
         """Return current hvac i.e. heat, cool, idle."""
-        match self._atrea.status.get('season_current'):
+        match self._atrea.status.get("season_current"):
             case "HEATING":
                 return HVACAction.HEATING
             case "NON_HEATING":
@@ -118,12 +112,12 @@ class AAtreaDevice(
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
-        return self._atrea.status.get('current_temperature')
+        return self._atrea.status.get("current_temperature")
 
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
-        return self._atrea.status.get('setpoint')
+        return self._atrea.status.get("setpoint")
 
     async def async_set_temperature(self, **kwargs) -> None:
         """Set new target temperature."""
@@ -143,7 +137,7 @@ class AAtreaDevice(
 
         Fan modes are rounded to the nearest step of 5.
         """
-        fan_value = self._atrea.status.get('fan_mode')
+        fan_value = self._atrea.status.get("fan_mode")
         if fan_value is None:
             return None
         try:

@@ -40,7 +40,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass,
             entry.data[CONF_URL],
             entry.data[CONF_USERNAME],
-            entry.data[CONF_PASSWORD]
+            entry.data[CONF_PASSWORD],
         )
     except Exception as e:
         raise ConfigEntryNotReady(f"Failed to initialize Atrea: {e}") from e
@@ -69,7 +69,7 @@ class AmotionAtreaCoordinator(DataUpdateCoordinator):
             LOGGER,
             name="AmotionAtrea",
             update_interval=timedelta(seconds=30),
-            always_update=True
+            always_update=True,
         )
         self.aatrea: AmotionAtrea = aatrea
 
@@ -93,9 +93,7 @@ class AmotionAtrea:
     async def on_connect(self) -> None:
         """Handle WebSocket connection."""
         LOGGER.debug("Connected")
-        self._hass.async_create_background_task(
-            self.login(), BACKGROUND_TASK_LOGIN
-        )
+        self._hass.async_create_background_task(self.login(), BACKGROUND_TASK_LOGIN)
 
     async def receive(self, message: dict[str, Any]) -> None:
         """Process incoming WebSocket messages.
@@ -114,22 +112,22 @@ class AmotionAtrea:
             return
 
         # Handle response messages with ID
-        if 'id' in message and message['id'] is not None:
+        if "id" in message and message["id"] is not None:
             # Check for required fields before storing
-            if 'response' not in message:
+            if "response" not in message:
                 return
 
-            if message.get('code') == 'UNAUTHORIZED':
+            if message.get("code") == "UNAUTHORIZED":
                 LOGGER.warning("Device returned UNAUTHORIZED response")
                 raise ConfigEntryNotReady("Authentication failed with device")
 
-            self._messages[message['id']] = message.get('response')
-            self._messages[message['id']] = message.get('response')
+            self._messages[message["id"]] = message.get("response")
+            self._messages[message["id"]] = message.get("response")
 
         # Handle event messages
         elif (
-            message.get('type') == 'event'
-            and message.get('event') == 'ui_info'
+            message.get("type") == "event"
+            and message.get("event") == "ui_info"
             and self.logged_in
         ):
             await self._update_status(message)
@@ -140,35 +138,35 @@ class AmotionAtrea:
         Args:
             message: The ui_info event message from the device.
         """
-        args = message.get('args', {})
-        unit = args.get('unit', {})
-        requests = args.get('requests', {})
+        args = message.get("args", {})
+        unit = args.get("unit", {})
+        requests = args.get("requests", {})
 
-        self.status['current_temperature'] = unit.get('temp_sup')
-        self.status['setpoint'] = requests.get('temp_request')
-        self.status['temp_oda'] = unit.get('temp_oda')
-        self.status['temp_ida'] = unit.get('temp_ida')
-        self.status['temp_eha'] = unit.get('temp_eha')
-        self.status['temp_eta'] = unit.get('temp_eta')
-        self.status['temp_sup'] = unit.get('temp_sup')
-        self.status['season_current'] = unit.get('season_current')
-        self.status['last_update'] = datetime.now()
+        self.status["current_temperature"] = unit.get("temp_sup")
+        self.status["setpoint"] = requests.get("temp_request")
+        self.status["temp_oda"] = unit.get("temp_oda")
+        self.status["temp_ida"] = unit.get("temp_ida")
+        self.status["temp_eha"] = unit.get("temp_eha")
+        self.status["temp_eta"] = unit.get("temp_eta")
+        self.status["temp_sup"] = unit.get("temp_sup")
+        self.status["season_current"] = unit.get("season_current")
+        self.status["last_update"] = datetime.now()
 
         if self._max_flow:
             max_flow_normalized = float(self._max_flow) / 100
-            self.status['fan_mode'] = round(
-                float(requests.get('flow_ventilation_req', 0)) / max_flow_normalized, -1
+            self.status["fan_mode"] = round(
+                float(requests.get("flow_ventilation_req", 0)) / max_flow_normalized, -1
             )
-            self.status['fan_eta_factor'] = round(
-                float(unit.get('flow_eta', 0)) / max_flow_normalized, -1
+            self.status["fan_eta_factor"] = round(
+                float(unit.get("flow_eta", 0)) / max_flow_normalized, -1
             )
-            self.status['fan_sup_factor'] = round(
-                float(unit.get('flow_sup', 0)) / max_flow_normalized, -1
+            self.status["fan_sup_factor"] = round(
+                float(unit.get("flow_sup", 0)) / max_flow_normalized, -1
             )
         else:
-            self.status['fan_eta_factor'] = unit.get('fan_eta_factor')
-            self.status['fan_sup_factor'] = unit.get('fan_sup_factor')
-            self.status['fan_mode'] = requests.get('fan_power_req')
+            self.status["fan_eta_factor"] = unit.get("fan_eta_factor")
+            self.status["fan_sup_factor"] = unit.get("fan_sup_factor")
+            self.status["fan_mode"] = requests.get("fan_power_req")
 
     async def update(self, message_id: int | None = None) -> dict[str, Any] | None:
         """Wait for a specific message ID response.
@@ -199,13 +197,12 @@ class AmotionAtrea:
         if self._max_flow:
             await self.time()
 
-        LOGGER.debug("Last update: %s", self.status['last_update'])
+        LOGGER.debug("Last update: %s", self.status["last_update"])
 
         # Refresh status if unavailable or older than 2 minutes
-        if (
-            self.status['current_temperature'] is None
-            or datetime.now() - self.status['last_update'] >= timedelta(minutes=2)
-        ):
+        if self.status["current_temperature"] is None or datetime.now() - self.status[
+            "last_update"
+        ] >= timedelta(minutes=2):
             try:
                 async with asyncio.timeout(60):
                     while not self.logged_in:
@@ -221,8 +218,8 @@ class AmotionAtrea:
                 await self._update_status(message)
 
         # Get maintenance data and diagram data every 5 minutes
-        if (
-            datetime.now() - self.status['last_maintenance_update'] >= timedelta(minutes=5)
+        if datetime.now() - self.status["last_maintenance_update"] >= timedelta(
+            minutes=5
         ):
             await self.async_get_maintenance_data()
             await self.async_get_diagram_data()
@@ -242,7 +239,7 @@ class AmotionAtrea:
             ConfigEntryNotReady: If connection times out.
         """
         msg = json.loads(message)
-        msg['id'] = self._msg_id = self._msg_id + 1
+        msg["id"] = self._msg_id = self._msg_id + 1
         LOGGER.debug("MSG: %s", msg)
 
         try:
@@ -252,27 +249,27 @@ class AmotionAtrea:
             LOGGER.debug("Connection to %s timed out", self._url)
             raise ConfigEntryNotReady from err
 
-        return msg['id']
+        return msg["id"]
 
     async def async_get_discovery(self) -> None:
         """Fetch device discovery information."""
         response_id = await self.send('{"endpoint": "discovery", "args": null}')
         discovery_data = await self.update(response_id)
         if discovery_data:
-            self.model = discovery_data.get('type', 'Unknown')
-            self.serial = discovery_data.get('production_number', 'Unknown')
-            self.brand = discovery_data.get('brand', 'Atrea')
-            self.name = discovery_data.get('name', 'Atrea')
+            self.model = discovery_data.get("type", "Unknown")
+            self.serial = discovery_data.get("production_number", "Unknown")
+            self.brand = discovery_data.get("brand", "Atrea")
+            self.name = discovery_data.get("name", "Atrea")
 
     async def async_get_version(self) -> None:
         """Fetch device firmware version."""
         response_id = await self.send('{"endpoint": "version", "args": null}')
         version_data = await self.update(response_id)
         if version_data:
-            gateway_info = version_data.get('GATEWAY', {})
-            self.sw_version = gateway_info.get('version', 'unknown')
+            gateway_info = version_data.get("GATEWAY", {})
+            self.sw_version = gateway_info.get("version", "unknown")
         else:
-            self.sw_version = 'unknown'
+            self.sw_version = "unknown"
 
     async def login(self) -> None:
         """Authenticate with the device and initialize connection."""
@@ -308,19 +305,21 @@ class AmotionAtrea:
         """Fetch UI control scheme to determine fan mode capabilities."""
         response_id = await self.send('{"endpoint": "ui_control_scheme", "args": null}')
         control_scheme = await self.update(response_id)
-        if control_scheme and 'flow_ventilation_req' in control_scheme.get('requests', {}):
-            flow_config = control_scheme['types']['flow_ventilation_req']
-            self._max_flow = flow_config.get('max')
-            self._min_flow = flow_config.get('min')
+        if control_scheme and "flow_ventilation_req" in control_scheme.get(
+            "requests", {}
+        ):
+            flow_config = control_scheme["types"]["flow_ventilation_req"]
+            self._max_flow = flow_config.get("max")
+            self._min_flow = flow_config.get("min")
 
     async def async_get_diagram_data(self) -> None:
         """Fetch diagram data including bypass_estim from the server."""
         response_id = await self.send('{"endpoint": "ui_diagram_data", "args": null}')
         diagram_response = await self.update(response_id)
         if diagram_response:
-            ui_diagram = diagram_response.get('ui_diagram_data', {})
-            self.status['bypass_estim'] = ui_diagram.get('bypass_estim', 0)
-            self.status['preheater_factor'] = ui_diagram.get('preheater_factor', 0)
+            ui_diagram = diagram_response.get("ui_diagram_data", {})
+            self.status["bypass_estim"] = ui_diagram.get("bypass_estim", 0)
+            self.status["preheater_factor"] = ui_diagram.get("preheater_factor", 0)
 
     async def async_get_maintenance_data(self) -> None:
         """Get maintenance information like filter change dates and motor hours."""
@@ -328,21 +327,25 @@ class AmotionAtrea:
         moment_data = await self.update(response_id)
 
         if moment_data:
-            self.status['last_maintenance_update'] = datetime.now()
-            self.status['filters_last_change'] = moment_data.get('lastFilterReset', {})
-            self.status['inspection_date'] = moment_data.get('inspection', {})
+            self.status["last_maintenance_update"] = datetime.now()
+            self.status["filters_last_change"] = moment_data.get("lastFilterReset", {})
+            self.status["inspection_date"] = moment_data.get("inspection", {})
 
             # Motor operating hours (convert from seconds to hours)
-            self.status['motor1_hours'] = round(moment_data.get('m1_register', 0) / 3600)
-            self.status['motor2_hours'] = round(moment_data.get('m2_register', 0) / 3600)
+            self.status["motor1_hours"] = round(
+                moment_data.get("m1_register", 0) / 3600
+            )
+            self.status["motor2_hours"] = round(
+                moment_data.get("m2_register", 0) / 3600
+            )
 
             # UV lamp operating hours (optional feature)
-            uv_lamp_register = moment_data.get('uv_lamp_register', 0)
+            uv_lamp_register = moment_data.get("uv_lamp_register", 0)
             if uv_lamp_register and uv_lamp_register > 0:
-                self.status['uv_lamp_hours'] = round(uv_lamp_register / 3600)
+                self.status["uv_lamp_hours"] = round(uv_lamp_register / 3600)
                 self.has_uv_lamp = True
             else:
-                self.status['uv_lamp_hours'] = None
+                self.status["uv_lamp_hours"] = None
                 self.has_uv_lamp = False
 
     async def time(self) -> None:
@@ -364,9 +367,11 @@ class AmotionAtrea:
         if self._max_flow:
             flow_request = (float(self._max_flow) / 100) * int(fan_mode)
             flow_request = max(flow_request, self._min_flow)
-            control = json.dumps({'variables': {"flow_ventilation_req": int(flow_request)}})
+            control = json.dumps(
+                {"variables": {"flow_ventilation_req": int(flow_request)}}
+            )
         else:
-            control = json.dumps({'variables': {"fan_power_req": int(fan_mode)}})
+            control = json.dumps({"variables": {"fan_power_req": int(fan_mode)}})
         response_id = await self.send(f'{{ "endpoint": "control", "args": {control} }}')
         await self.update(response_id)
 
@@ -376,7 +381,7 @@ class AmotionAtrea:
         Args:
             temperature: Target temperature in Celsius.
         """
-        control = json.dumps({'variables': {'temp_request': int(temperature)}})
+        control = json.dumps({"variables": {"temp_request": int(temperature)}})
         response_id = await self.send(f'{{ "endpoint": "control", "args": {control} }}')
         await self.update(response_id)
 
@@ -389,23 +394,19 @@ class AmotionAtrea:
         Note:
             FIXME: This should be setting based on UI control scheme.
         """
-        mode = 'OFF'
+        mode = "OFF"
         match hvac_mode:
             case HVACMode.HEAT_COOL:
-                mode = 'VENTILATION'
+                mode = "VENTILATION"
             case HVACMode.AUTO:
-                mode = 'AUTO'
+                mode = "AUTO"
 
-        control = json.dumps({'variables': {"work_regime": mode}})
+        control = json.dumps({"variables": {"work_regime": mode}})
         response_id = await self.send(f'{{ "endpoint": "control", "args": {control} }}')
         await self.update(response_id)
 
     def __init__(
-        self,
-        hass: HomeAssistant,
-        url: str,
-        username: str,
-        password: str
+        self, hass: HomeAssistant, url: str, username: str, password: str
     ) -> None:
         """Initialize the AmotionAtrea device.
 
@@ -429,31 +430,31 @@ class AmotionAtrea:
         self.has_uv_lamp: bool = False
 
         self.status: dict[str, Any] = {
-            'state': None,
-            'current_temperature': None,
-            'setpoint': None,
-            'mode': None,
-            'current_hvac_mode': HVACMode.AUTO,
-            'fan_mode': None,
-            'temp_oda': None,
-            'temp_ida': None,
-            'temp_eha': None,
-            'fan_eta_factor': None,
-            'fan_sup_factor': None,
-            'temp_sup': None,
-            'temp_eta': None,
-            'season_current': None,
-            'last_update': None,
-            'has_heater': False,
-            'has_cooler': False,
-            'filters_last_change': {},
-            'inspection_date': {},
-            'motor1_hours': 0,
-            'motor2_hours': 0,
-            'uv_lamp_hours': None,
-            'last_maintenance_update': datetime.min,
-            'bypass_estim': 0,
-            'preheater_factor': 0,
+            "state": None,
+            "current_temperature": None,
+            "setpoint": None,
+            "mode": None,
+            "current_hvac_mode": HVACMode.AUTO,
+            "fan_mode": None,
+            "temp_oda": None,
+            "temp_ida": None,
+            "temp_eha": None,
+            "fan_eta_factor": None,
+            "fan_sup_factor": None,
+            "temp_sup": None,
+            "temp_eta": None,
+            "season_current": None,
+            "last_update": None,
+            "has_heater": False,
+            "has_cooler": False,
+            "filters_last_change": {},
+            "inspection_date": {},
+            "motor1_hours": 0,
+            "motor2_hours": 0,
+            "uv_lamp_hours": None,
+            "last_maintenance_update": datetime.min,
+            "bypass_estim": 0,
+            "preheater_factor": 0,
         }
 
         self.model: str | None = None

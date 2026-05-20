@@ -11,6 +11,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 
 class AsyncIterator:
     """Helper class for async iteration in tests."""
+
     def __init__(self, messages):
         self.messages = messages
         self.index = 0
@@ -55,7 +56,7 @@ class TestAtreaWebsocket:
         message = json.dumps({"endpoint": "test", "args": None})
 
         # Mock asyncio.sleep to avoid waiting
-        with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch("asyncio.sleep", new_callable=AsyncMock):
             await atrea_websocket.send(message)
 
         # Should attempt to send but fail gracefully
@@ -86,7 +87,7 @@ class TestAtreaWebsocket:
         atrea_websocket._websocket = mock_ws
 
         # Mock asyncio.sleep to avoid waiting
-        with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch("asyncio.sleep", new_callable=AsyncMock):
             await atrea_websocket.send(message)
 
         # Should attempt multiple times then close
@@ -98,7 +99,7 @@ class TestAtreaWebsocket:
         mock_on_data = AsyncMock()
 
         # Create a mock websocket with proper async iterator
-        mock_ws = MagicMock(spec=['__aiter__'])
+        mock_ws = MagicMock(spec=["__aiter__"])
         mock_ws.__aiter__ = lambda self: AsyncIterator([json.dumps({"test": "data"})])
 
         await atrea_websocket.handle_messages(mock_ws, mock_on_data)
@@ -111,7 +112,7 @@ class TestAtreaWebsocket:
         mock_on_data = AsyncMock()
 
         # Create a mock websocket with proper async iterator
-        mock_ws = MagicMock(spec=['__aiter__'])
+        mock_ws = MagicMock(spec=["__aiter__"])
         mock_ws.__aiter__ = lambda self: AsyncIterator([b'{"test": "bytes_data"}'])
 
         await atrea_websocket.handle_messages(mock_ws, mock_on_data)
@@ -125,8 +126,8 @@ class TestAtreaWebsocket:
         mock_on_data = AsyncMock()
 
         # Create a mock websocket with invalid UTF-8
-        mock_ws = MagicMock(spec=['__aiter__'])
-        mock_ws.__aiter__ = lambda self: AsyncIterator([b'\xff\xfe'])
+        mock_ws = MagicMock(spec=["__aiter__"])
+        mock_ws.__aiter__ = lambda self: AsyncIterator([b"\xff\xfe"])
 
         await atrea_websocket.handle_messages(mock_ws, mock_on_data)
 
@@ -144,16 +145,21 @@ class TestAtreaWebsocket:
         class MockWS:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *args):
                 pass
+
             async def send(self, msg):
                 pass
+
             def __aiter__(self):
                 return AsyncIterator([])
 
-        with patch('websockets.connect', return_value=MockWS()):
+        with patch("websockets.connect", return_value=MockWS()):
             try:
-                await atrea_websocket.connect(mock_on_connect, mock_on_data, mock_on_close)
+                await atrea_websocket.connect(
+                    mock_on_connect, mock_on_data, mock_on_close
+                )
             except Exception:
                 pass  # Expected to exit the loop
 
@@ -167,9 +173,12 @@ class TestAtreaWebsocket:
         mock_on_data = AsyncMock()
         mock_on_close = AsyncMock()
 
-        with patch('websockets.connect', side_effect=Exception("Connection failed")):
+        with patch("websockets.connect", side_effect=Exception("Connection failed")):
             with pytest.raises(ConfigEntryNotReady):
-                await atrea_websocket.connect(mock_on_connect, mock_on_data, mock_on_close)
+                await atrea_websocket.connect(
+                    mock_on_connect, mock_on_data, mock_on_close
+                )
+
 
 """Extended tests for Amotion Atrea websocket module."""
 
@@ -189,7 +198,10 @@ class TestAtreaWebsocketExtended:
         """Test connect method handles various exceptions."""
         ws = AtreaWebsocket("ws://192.168.1.100:8080/")
 
-        with patch('websockets.connect', side_effect=ConnectionRefusedError("Connection refused")):
+        with patch(
+            "websockets.connect",
+            side_effect=ConnectionRefusedError("Connection refused"),
+        ):
             with pytest.raises(ConfigEntryNotReady):
                 await ws.connect(None, None, None)
 

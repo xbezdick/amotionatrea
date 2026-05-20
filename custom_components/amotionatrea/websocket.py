@@ -41,7 +41,7 @@ class AtreaWebsocket:
             # Only attempt to send if the connection is active
             if not self._websocket:
                 # Exponential backoff: 1s, 2s, 4s, ... up to 30s
-                delay = min(2 ** attempt, 30)
+                delay = min(2**attempt, 30)
                 await asyncio.sleep(delay)
                 continue
             try:
@@ -49,7 +49,7 @@ class AtreaWebsocket:
                 return
             except websockets.exceptions.ConnectionClosed:
                 # Handle the closed connection and retry with backoff
-                delay = min(2 ** attempt, 30)
+                delay = min(2**attempt, 30)
                 await asyncio.sleep(delay)
                 continue
         LOGGER.debug("Failed to send %s", message)
@@ -57,9 +57,7 @@ class AtreaWebsocket:
             await self._websocket.close()
 
     async def handle_messages(
-        self,
-        websocket: Any,
-        on_data: Callable[[dict[str, Any]], Any]
+        self, websocket: Any, on_data: Callable[[dict[str, Any]], Any]
     ) -> None:
         """Handle incoming WebSocket messages.
             on_data: Callback function to process received data.
@@ -72,7 +70,7 @@ class AtreaWebsocket:
                 LOGGER.debug("Received %s", message)
                 try:
                     if isinstance(message, bytes):
-                        decoded_message = message.decode('utf-8')
+                        decoded_message = message.decode("utf-8")
                     else:
                         decoded_message = message
                     await on_data(json.loads(decoded_message))
@@ -86,7 +84,7 @@ class AtreaWebsocket:
         self,
         on_connect: Callable[[], Any],
         on_data: Callable[[dict[str, Any]], Any],
-        on_close: Callable[[], Any]
+        on_close: Callable[[], Any],
     ) -> None:
         """Connect to the WebSocket server.
 
@@ -101,7 +99,7 @@ class AtreaWebsocket:
                 f"{self._url}api/ws",
                 ping_interval=None,
                 ping_timeout=None,
-                logger=LOGGER
+                logger=LOGGER,
             ):
                 try:
                     self._websocket = websocket

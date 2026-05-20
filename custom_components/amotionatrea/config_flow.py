@@ -73,7 +73,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_migrate_entry(hass, config_entry: config_entries.ConfigEntry):
         """Migrate old entry."""
-        LOGGER.info("Migrating configuration from version %s.%s", config_entry.version, config_entry.minor_version)
+        LOGGER.info(
+            "Migrating configuration from version %s.%s",
+            config_entry.version,
+            config_entry.minor_version,
+        )
 
         if config_entry.version == 1:
             host = config_entry.data.get(CONF_URL)
@@ -89,7 +93,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_PASSWORD: config_entry.data[CONF_PASSWORD],
                 CONF_NAME: config_entry.data.get(CONF_NAME, "Amotion Atrea"),
             }
-            hass.config_entries.async_update_entry(config_entry, data=new_data, version=2)
+            hass.config_entries.async_update_entry(
+                config_entry, data=new_data, version=2
+            )
             return True
         # Already at latest version or unknown version - return True to indicate success
         return True
@@ -126,17 +132,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["url"] = "invalid_url_format"
         else:
             scheme = parsed_url.scheme
-            if scheme == 'ws':
+            if scheme == "ws":
                 port = parsed_url.port or 80
-            elif scheme == 'wss':
+            elif scheme == "wss":
                 port = parsed_url.port or 443
             else:
                 # This shouldn't happen since we've already validated protocol
                 errors["base"] = "unknown"
                 return self.async_show_form(
-                    step_id="user",
-                    data_schema=STEP_USER_DATA_SCHEMA,
-                    errors=errors
+                    step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
                 )
 
             try:
@@ -155,7 +159,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     hass=self.hass,
                     url=self.url,
                     username=self.username,
-                    password=self.password
+                    password=self.password,
                 )
                 await self.atrea.fetch()
                 if not self.atrea.logged_in:
@@ -175,9 +179,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self.atrea:
                 del self.atrea  # Clean up before retrying
             return self.async_show_form(
-                step_id="user",
-                data_schema=STEP_USER_DATA_SCHEMA,
-                errors=errors
+                step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
             )
 
         # Handle optional name field
@@ -191,10 +193,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): str,
                 }
             )
-            return self.async_show_form(
-                step_id="user",
-                data_schema=name_step_schema
-            )
+            return self.async_show_form(step_id="user", data_schema=name_step_schema)
 
         return self.async_create_entry(
             title=f"{self.name}",

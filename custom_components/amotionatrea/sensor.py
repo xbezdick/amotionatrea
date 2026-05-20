@@ -110,7 +110,6 @@ ATREA_SENSORS: tuple[AtreaSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         json_value="fan_sup_factor",
     ),
-
     # Additional sensors from ui_diagram_data
     AtreaSensorEntityDescription(
         key="bypass_estim",
@@ -132,7 +131,6 @@ ATREA_SENSORS: tuple[AtreaSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         json_value="preheater_factor",
     ),
-
     # New sensors for maintenance data
     AtreaSensorEntityDescription(
         key="filters_last_change",
@@ -188,15 +186,16 @@ async def async_setup_entry(
     coordinator: AmotionAtreaCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[AAtreaDeviceSensor] = []
     for description in ATREA_SENSORS:
-        if description.json_value == "uv_lamp_hours" and not coordinator.aatrea.has_uv_lamp:
+        if (
+            description.json_value == "uv_lamp_hours"
+            and not coordinator.aatrea.has_uv_lamp
+        ):
             continue
         entities.append(AAtreaDeviceSensor(coordinator, description, sensor_name))
     async_add_entities(entities, update_before_add=True)
 
 
-class AAtreaDeviceSensor(
-    CoordinatorEntity[AmotionAtreaCoordinator], SensorEntity
-):
+class AAtreaDeviceSensor(CoordinatorEntity[AmotionAtreaCoordinator], SensorEntity):
     """Sensor entity for Amotion Atrea devices."""
 
     entity_description: AtreaSensorEntityDescription
@@ -206,7 +205,7 @@ class AAtreaDeviceSensor(
         self,
         coordinator: AmotionAtreaCoordinator,
         description: AtreaSensorEntityDescription,
-        sensor_name: str
+        sensor_name: str,
     ) -> None:
         """Initialize the sensor entity."""
         super().__init__(coordinator)
@@ -232,12 +231,15 @@ class AAtreaDeviceSensor(
             return None
 
         # Handle date formatting for filters_last_change and inspection_date
-        if self.entity_description.json_value in ['filters_last_change', 'inspection_date']:
+        if self.entity_description.json_value in [
+            "filters_last_change",
+            "inspection_date",
+        ]:
             if not isinstance(value, dict):
                 return None
-            day = value.get('day')
-            month = value.get('month')
-            year = value.get('year')
+            day = value.get("day")
+            month = value.get("month")
+            year = value.get("year")
             if day is not None and month is not None and year is not None:
                 return f"{year}-{month:02d}-{day:02d}"
             return None
